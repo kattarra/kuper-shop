@@ -59,6 +59,7 @@ async function notifyPartners(order, items) {
 }
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { error: "Method not allowed" });
+  let stage = "request_validation";
   try {
     const body = req.body || {};
     const name = String(body.name || "").trim();
@@ -86,6 +87,7 @@ module.exports = async function handler(req, res) {
     const subtotal = items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
     const delivery_fee = body.delivery === false ? 0 : 150;
     const total = subtotal + delivery_fee;
+    stage = "insert_order";
     const created = await supabaseRequest("/rest/v1/orders", {
       method: "POST",
       headers: { Prefer: "return=representation" },
@@ -96,13 +98,16 @@ module.exports = async function handler(req, res) {
     });
     const order = Array.isArray(created) ? created[0] : null;
     if (!order || !order.id) throw new Error("Supabase did not return the created order");
+    stage = "insert_order_items";
     const itemRows = items.map(item => ({ ...item, order_id: order.id }));
     await supabaseRequest("/rest/v1/order_items", {
       method: "POST",
       body: JSON.stringify(itemRows)
     });
+    stage = "telegram_notification";
     let telegram = { configured: false };
     try { telegram = await notifyPartners(order, items); } catch (e) { console.error("Telegram notification failed:", e.message); }
+    stage = "complete";
     return send(res, 201, {
       ok: true,
       order_number: order.order_number,
@@ -111,7 +116,7 @@ module.exports = async function handler(req, res) {
       telegram_notifications_sent: telegram.sent || 0
     });
   } catch (error) {
-    console.error("Order creation failed:", error.message);
-    return send(res, 500, { error: "Не удалось сохранить заказ. Попробуйте ещё раз." });
+    console.error("Order creation failed at stage " + stage + ":", error.message);
+    return send(res, 500, { error: "Не удалось сохранить заказ.", stage, diagnostic: String(error.message || "Unknown error").slice(0, 500) });
   }
 };
