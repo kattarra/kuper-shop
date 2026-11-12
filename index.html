@@ -925,7 +925,23 @@ function inc(i){ if(cart[i] < PRODUCTS[i].stock){ cart[i]++; renderCart(); rende
 function dec(i){ if(cart[i]>1) cart[i]--; else delete cart[i]; renderCart(); renderGrid(); updateBadge(); }
 function showForm(){ closeCart(); const sum = cartSum(); const del = deliveryOn?150:0; const total = sum+del; document.getElementById("formBody").innerHTML = `<div class="field"><label>Имя</label><input id="fName" placeholder="Иван"></div><div class="field"><label>Телефон</label><input id="fPhone" placeholder="+7 900 000-00-00" type="tel"></div><div class="field"><label>Адрес доставки</label><input id="fAddr" placeholder="Улица, дом, квартира"></div><div style="font-size:14px;color:var(--muted);margin:12px 0">Товары: ${sum} ₽ · Доставка: ${del} ₽ · <b style="color:var(--text)">Итого: ${total} ₽</b></div><button class="btn-primary" onclick="submitOrder(${total})">Подтвердить заказ</button><div class="hint">Оплата — переводом курьеру при получении. Реквизиты появятся после оформления.</div>`; document.getElementById("overlay").classList.add("show"); document.getElementById("formSheet").classList.add("show"); }
 function closeForm(){ document.getElementById("overlay").classList.remove("show"); document.getElementById("formSheet").classList.remove("show"); }
-function submitOrder(total){ const name = document.getElementById("fName").value.trim(); const phone = document.getElementById("fPhone").value.trim(); const addr = document.getElementById("fAddr").value.trim(); if(!name||!phone||!addr){ toast("Заполните все поля"); return; } const orderId = "KS-" + Math.floor(100000+Math.random()*900000); document.getElementById("formBody").innerHTML = `<div class="thanks"><div class="ok">✅</div><h2>Заказ ${orderId} принят</h2><p>Сумма к оплате: <b style="color:var(--green)">${total} ₽</b><br>Оплата — переводом курьеру при получении.</p><div class="reqs"><b>Реквизиты для перевода:</b><br>${escapeHtml(SETTINGS.reqs).replace(/\n/g,"<br>")}</div><p>После перевода отправьте скрин в Telegram</p><a class="tg-btn" href="https://t.me/djddjsbet" target="_blank">Написать @djddjsbet</a></div><button class="btn-secondary" onclick="resetAll()">Вернуться в каталог</button>`; }
+async function submitOrder(total){
+ const name=document.getElementById("fName").value.trim();
+ const phone=document.getElementById("fPhone").value.trim();
+ const addr=document.getElementById("fAddr").value.trim();
+ if(!name||!phone||!addr){toast("Заполните все поля");return;}
+ const button=document.querySelector("#formBody .btn-primary");
+ if(button){button.disabled=true;button.textContent="Отправляем...";}
+ try{
+  const response=await fetch("/api/orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,phone,address:addr,delivery:deliveryOn,items:cartItems().map(x=>({product_key:String(x.i),quantity:x.qty}))})});
+  const result=await response.json();
+  if(!response.ok||!result.ok) throw new Error(result.error||"Не удалось оформить заказ");
+  document.getElementById("formBody").innerHTML=`<div class="thanks"><div class="ok">✅</div><h2>Заказ KS-${result.order_number} принят</h2><p>Сумма к оплате: <b style="color:var(--green)">${result.total} ₽</b><br>Оплата — переводом курьеру при получении.</p><div class="reqs"><b>Реквизиты для перевода:</b><br>${escapeHtml(SETTINGS.reqs).replace(/\\n/g,"<br>")}</div><p>После перевода отправьте скрин в Telegram</p><a class="tg-btn" href="https://t.me/djddjsbet" target="_blank">Написать @djddjsbet</a></div><button class="btn-secondary" onclick="resetAll()">Вернуться в каталог</button>`;
+ }catch(error){
+  toast(error.message||"Ошибка оформления");
+  if(button){button.disabled=false;button.textContent="Подтвердить заказ";}
+ }
+}
 function resetAll(){ cart={}; deliveryOn=true; updateBadge(); renderGrid(); closeForm(); closeCart(); toast("Спасибо за заказ!"); }
 let tapCount=0, tapTimer=null;
 function tapBrand(){ tapCount++; clearTimeout(tapTimer); tapTimer = setTimeout(()=>{tapCount=0}, 800); if(tapCount>=5){ tapCount=0; askAdmin(); } }
