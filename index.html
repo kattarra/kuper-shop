@@ -939,7 +939,7 @@ async function submitOrder(total){
   const responseText=await response.text();
   let result={};
   try{result=responseText?JSON.parse(responseText):{};}catch(parseError){throw new Error("Сервер вернул некорректный ответ (HTTP "+response.status+").");}
-  if(!response.ok||!result.ok) throw new Error(result.error||("Ошибка API: HTTP "+response.status));
+  if(!response.ok||!result.ok){ const detail=[result.error||("Ошибка API: HTTP "+response.status),result.stage?("Этап: "+result.stage):"",result.diagnostic||""].filter(Boolean).join(" | "); throw new Error(detail); }
   document.getElementById("formBody").innerHTML=`<div class="thanks"><div class="ok">✅</div><h2>Заказ KS-${result.order_number} принят</h2><p>Сумма к оплате: <b style="color:var(--green)">${result.total} ₽</b><br>Оплата — переводом курьеру при получении.</p><div class="reqs"><b>Реквизиты для перевода:</b><br>${escapeHtml(SETTINGS.reqs).replace(/\\n/g,"<br>")}</div><p>После перевода отправьте скрин в Telegram</p><a class="tg-btn" href="https://t.me/djddjsbet" target="_blank">Написать @djddjsbet</a></div><button class="btn-secondary" onclick="resetAll()">Вернуться в каталог</button>`;
  }catch(error){
   console.error("[KuperShop] Order request failed", error);
