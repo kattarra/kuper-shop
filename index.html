@@ -1053,6 +1053,8 @@ let tapCount=0, tapTimer=null;
 function tapBrand(){ tapCount++; clearTimeout(tapTimer); tapTimer = setTimeout(()=>{tapCount=0}, 800); if(tapCount>=5){ tapCount=0; askAdmin(); } }
 
 const ADMIN_TOKEN_KEY="ks_admin_access_token";
+let ADMIN_PRODUCTS=[];
+let ADMIN_PRODUCT_PAGE=0;
 function askAdmin(){ openAdmin(); }
 function getAdminToken(){ try{return sessionStorage.getItem(ADMIN_TOKEN_KEY)||"";}catch(e){return "";} }
 function setAdminToken(token){ try{sessionStorage.setItem(ADMIN_TOKEN_KEY,token);}catch(e){} }
@@ -1148,8 +1150,14 @@ async function loadAdminProducts(){
  catch(error){toast(error.message||"Не удалось загрузить товары");}
 }
 function renderAdminProducts(products){
+ ADMIN_PRODUCTS=products;
  const active=products.filter(p=>p.is_active).length;
- const cards=products.map(p=>\`<section class="admin-product">
+ const query=(document.getElementById("adminProductSearch")?.value||"").trim().toLowerCase();
+ const filtered=products.filter(p=>[p.name,p.category,p.brand].some(v=>String(v||"").toLowerCase().includes(query)));
+ const pageSize=20,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize));
+ ADMIN_PRODUCT_PAGE=Math.min(ADMIN_PRODUCT_PAGE,pageCount-1);
+ const visible=filtered.slice(ADMIN_PRODUCT_PAGE*pageSize,(ADMIN_PRODUCT_PAGE+1)*pageSize);
+ const cards=visible.map(p=>\`<section class="admin-product">
  <div class="admin-product-head"><strong>\${escapeHtml(String(p.name||""))}</strong><span class="admin-muted">\${p.is_active?"В витрине":"Скрыт"}</span></div>
  <div class="field"><label>Название</label><input id="pname_\${escapeHtml(String(p.product_key))}" maxlength="180" value="\${escapeHtml(String(p.name||""))}"></div>
  <div class="field"><label>Категория</label><input id="pcat_\${escapeHtml(String(p.product_key))}" maxlength="80" value="\${escapeHtml(String(p.category||""))}"></div>
@@ -1168,8 +1176,10 @@ function renderAdminProducts(products){
  <div class="field"><label>Цена, ₽</label><input id="newPprice" type="number" min="0" step="1" value="0"></div>
  <div class="field"><label>Остаток</label><input id="newPstock" type="number" min="0" step="1" value="0"></div>
  <button class="btn-primary" onclick="createAdminProduct()">Добавить товар</button></section>
- \${cards||'<div class="empty">Товаров пока нет</div>'}\`;
+ \${cards||'<div class="empty">Ничего не найдено</div>'}<div class="admin-product-actions"><button class="secondary" onclick="changeAdminProductPage(-1)" ${ADMIN_PRODUCT_PAGE===0?"disabled":""}>Назад</button><button class="secondary" onclick="changeAdminProductPage(1)" ${ADMIN_PRODUCT_PAGE>=pageCount-1?"disabled":""}>Дальше</button></div>\`;
 }
+function filterAdminProducts(){ADMIN_PRODUCT_PAGE=0;renderAdminProducts(ADMIN_PRODUCTS);}
+function changeAdminProductPage(delta){ADMIN_PRODUCT_PAGE=Math.max(0,ADMIN_PRODUCT_PAGE+delta);renderAdminProducts(ADMIN_PRODUCTS);}
 async function saveAdminProduct(key){
  const val=id=>document.getElementById(id+"_"+key).value.trim();
  try{await adminRequest({action:"update_product",product_key:key,name:val("pname"),category:val("pcat"),brand:val("pbrand"),price:Number(val("pprice")),stock:Number(val("pstock"))});toast("Товар сохранён");await loadAdminProducts();}
