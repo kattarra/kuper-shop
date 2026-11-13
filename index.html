@@ -54,6 +54,19 @@
   .promo-admin{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--card2)} .promo-admin img{width:60px;height:40px;object-fit:cover;border-radius:6px;background:#000} .promo-admin .pa-text{flex:1;font-size:12px;line-height:1.3;color:var(--muted)} .promo-admin .pa-del{background:var(--danger);border:none;color:#fff;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}
   .hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4}
   .search-wrap{padding:0 16px 12px}.search-wrap input{width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:14px;background:var(--card);color:var(--text);font:inherit;outline:none}.search-wrap input:focus{border-color:var(--accent)}
+
+  body.age-gate-open{overflow:hidden}
+  .age-gate{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(7,9,13,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+  .age-gate[hidden]{display:none}
+  .age-card{width:100%;max-width:420px;padding:30px 24px;border:1px solid var(--border);border-radius:22px;background:var(--card);text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+  .age-mark{width:76px;height:76px;margin:0 auto 18px;border:2px solid var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:27px;font-weight:800;letter-spacing:-1px}
+  .age-card h2{margin:0 0 12px;font-size:25px}
+  .age-card p{margin:0 0 22px;color:var(--muted);font-size:14px;line-height:1.55}
+  .age-actions{display:grid;gap:10px}
+  .age-actions button{width:100%;padding:14px 16px;border-radius:12px;font:inherit;font-size:15px;font-weight:650;cursor:pointer}
+  .age-accept{background:var(--accent);border:1px solid var(--accent);color:#fff}
+  .age-decline{background:var(--card2);border:1px solid var(--border);color:var(--text)}
+  .age-denied{margin-top:16px;color:var(--danger);font-size:13px;line-height:1.45}
 </style>
 </head>
 <body>
@@ -93,6 +106,20 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+
+<div class="age-gate" id="ageGate" role="dialog" aria-modal="true" aria-labelledby="ageGateTitle" aria-describedby="ageGateDescription" hidden>
+  <div class="age-card">
+    <div class="age-mark" aria-hidden="true">18+</div>
+    <h2 id="ageGateTitle">Вам уже исполнилось 18 лет?</h2>
+    <p id="ageGateDescription">Каталог предназначен исключительно для совершеннолетних. Подтвердите, что вам исполнилось 18 лет, чтобы продолжить.</p>
+    <div class="age-actions">
+      <button class="age-accept" type="button" onclick="confirmAdult()">Мне есть 18 лет</button>
+      <button class="age-decline" type="button" onclick="declineAdult()">Мне нет 18 лет</button>
+    </div>
+    <div class="age-denied" id="ageDenied" role="status" hidden>Доступ к каталогу закрыт. Он предназначен только для совершеннолетних.</div>
+  </div>
+</div>
 
 <script>
 const RAW_DATA = `
@@ -906,6 +933,31 @@ let SETTINGS = loadSettings();
 let cart = {}; let activeCat = "Все"; let searchQuery = ""; let deliveryOn = true;
 let CATS = ["Все", ...Array.from(new Set(PRODUCTS.map(p=>p.cat)))];
 let catalogLoadedFromSupabase = false;
+const AGE_GATE_STORAGE_KEY = "ks_age_confirmed_v1";
+function hasAdultConfirmation(){ try { return localStorage.getItem(AGE_GATE_STORAGE_KEY)==="yes"; } catch(e) { return false; } }
+function showAgeGate(){
+  const gate=document.getElementById("ageGate");
+  if(!gate) return;
+  gate.hidden=false;
+  document.body.classList.add("age-gate-open");
+  const accept=gate.querySelector(".age-accept");
+  if(accept) accept.focus();
+}
+function confirmAdult(){
+  try { localStorage.setItem(AGE_GATE_STORAGE_KEY,"yes"); } catch(e) { toast("Не удалось сохранить подтверждение. Разрешите хранение данных и обновите страницу."); return; }
+  const gate=document.getElementById("ageGate");
+  if(gate) gate.hidden=true;
+  document.body.classList.remove("age-gate-open");
+  renderCats();
+  loadCatalog();
+}
+function declineAdult(){
+  const denied=document.getElementById("ageDenied");
+  if(denied) denied.hidden=false;
+  const actions=document.querySelector(".age-actions");
+  if(actions) actions.hidden=true;
+}
+
 async function loadCatalog(){
   const grid=document.getElementById("grid");
   if(grid) grid.innerHTML = '<div class="empty">Загружаем каталог…</div>';
@@ -985,7 +1037,7 @@ function addPromo(){ const text = document.getElementById("aPromoText").value.tr
 function saveAdmin(){ SETTINGS.shopName = document.getElementById("aName").value.trim() || "KuperShop"; SETTINGS.reqs = document.getElementById("aReqs").value.trim(); saveSettings(SETTINGS); toast("Сохранено!"); closeAdmin(); }
 function toast(msg){ const el = document.getElementById("toast"); el.textContent = msg; el.classList.add("show"); setTimeout(()=>el.classList.remove("show"), 2000); }
 function escapeHtml(s){ return s.replace(/[&<>'"]/g, tag=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag]||tag)); }
-document.addEventListener("DOMContentLoaded", ()=>{ renderHeader(); renderPromos(); renderCats(); updateBadge(); loadCatalog(); });
+document.addEventListener("DOMContentLoaded", ()=>{ renderHeader(); renderPromos(); updateBadge(); if(hasAdultConfirmation()){ document.getElementById("ageGate").hidden=true; renderCats(); loadCatalog(); } else { showAgeGate(); } });
 </script>
 </body>
 </html>
