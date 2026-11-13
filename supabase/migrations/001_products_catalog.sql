@@ -8,12 +8,15 @@ create table if not exists public.products (
   brand text not null default '',
   name text not null,
   price integer not null check (price >= 0),
-  stock integer not null default 0 check (stock >= 0),
+  stock integer not null default 0,
   is_active boolean not null default true,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.products drop constraint if exists products_stock_check;
+alter table public.products add constraint products_stock_check check (stock >= -1);
 
 create index if not exists products_active_sort_idx
   on public.products (is_active, sort_order);
@@ -831,7 +834,15 @@ values
 ('778','Кальяны','Ростомания','Трубка стеклянная мал.',150,5,true,778),
 ('779','Кальяны','Ростомания','Бонг',2500,2,true,779),
 ('780','Кальяны','Ростомания','Гриндер с логотипом ODENS',650,1,true,780)
-on conflict (product_key) do nothing;
+on conflict (product_key) do update set
+  category = excluded.category,
+  brand = excluded.brand,
+  name = excluded.name,
+  price = excluded.price,
+  stock = excluded.stock,
+  is_active = excluded.is_active,
+  sort_order = excluded.sort_order,
+  updated_at = now();
 
 -- Expected initial import: 781 rows.
 select count(*) as total_products,
