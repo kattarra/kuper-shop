@@ -1159,6 +1159,7 @@ function renderAdminProducts(products){
  const visible=filtered.slice(ADMIN_PRODUCT_PAGE*pageSize,(ADMIN_PRODUCT_PAGE+1)*pageSize);
  const cards=visible.map(p=>`<section class="admin-product">
  <div class="admin-product-head"><strong>${escapeHtml(String(p.name||""))}</strong><span class="admin-muted">${p.is_active?"В витрине":"Скрыт"}</span></div>
+ <div class="field"><label>Фото товара (JPG, PNG или WEBP)</label><input type="file" accept="image/jpeg,image/png,image/webp" onchange="uploadAdminProductImage(&quot;${escapeHtml(String(p.product_key))}&quot;,this)"></div>
  <div class="field"><label>Название</label><input id="pname_${escapeHtml(String(p.product_key))}" maxlength="180" value="${escapeHtml(String(p.name||""))}"></div>
  <div class="field"><label>Категория</label><input id="pcat_${escapeHtml(String(p.product_key))}" maxlength="80" value="${escapeHtml(String(p.category||""))}"></div>
  <div class="field"><label>Бренд</label><input id="pbrand_${escapeHtml(String(p.product_key))}" maxlength="80" value="${escapeHtml(String(p.brand||""))}"></div>
