@@ -52,6 +52,47 @@ async function notifyPartners(order, items) {
   }));
   return { configured: true, sent: results.filter(Boolean).length, total: results.length };
 }
+
+async function attachReferralToOrder(order, phone, referralCode) {
+  const secret = process.env.REFERRAL_HASH_SECRET;
+  if (!secret) {
+    console.warn("[Referral] REFERRAL_HASH_SECRET is not configured; attribution skipped");
+    return { linked: false, reason: "not_configured" };
+  }
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return { linked: false, reason: "invalid_phone" };
+
+  const crypto = require("crypto");
+  const phoneHash = crypto.createHmac("sha256", secret).update(digits).digest("hex");
+  let partnerId = null;
+  const code = String(referralCode || "").trim().toUpperCase();
+
+  if (code && /^[A-Z0-9_-]{3,32}$/.test(code)) {
+    const partners = await supabaseRequest(
+      "/rest/v1/partners?select=id&referral_code=eq." + encodeURIComponent(code) + "&status=eq.active&limit=1"
+    );
+    if (Array.isArray(partners) && partners.length) partnerId = partners[0].id;
+  }
+
+  const claimed = await supabaseRequest("/rest/v1/rpc/claim_referral_customer", {
+    method: "POST",
+    body: JSON.stringify({ p_phone_hash: phoneHash, p_partner_id: partnerId })
+  });
+  const assignedPartnerId = typeof claimed === "string" ? claimed : null;
+  if (!assignedPartnerId) return { linked: false, reason: "no_partner" };
+
+  await supabaseRequest("/rest/v1/referral_order_links", {
+    method: "POST",
+    headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+    body: JSON.stringify({
+      order_id: order.id,
+      partner_id: assignedPartnerId,
+      phone_hash: phoneHash
+    })
+  });
+  return { linked: true };
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { error: "Method not allowed" });
   let stage = "request_validation";
@@ -102,6 +143,14 @@ module.exports = async function handler(req, res) {
       method: "POST",
       body: JSON.stringify(itemRows)
     });
+    stage = "referral_attribution";
+    let referral = { linked: false, reason: "not_attempted" };
+    try {
+      referral = await attachReferralToOrder(order, phone, body.referral_code);
+    } catch (e) {
+      console.error("[Referral] Attribution failed for order " + order.id + ":", e.message);
+      referral = { linked: false, reason: "error" };
+    }
     stage = "telegram_notification";
     let telegram = { configured: false };
     try { telegram = await notifyPartners(order, items); } catch (e) { console.error("Telegram notification failed:", e.message); }
@@ -110,6 +159,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       order_number: order.order_number,
       subtotal, delivery_fee, total,
+      referral_attributed: referral.linked,
       telegram_notification_configured: telegram.configured,
       telegram_notifications_sent: telegram.sent || 0
     });
