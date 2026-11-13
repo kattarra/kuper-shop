@@ -18,8 +18,18 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
   try {
-    const products = await supabaseRequest("/rest/v1/products?select=product_key,category,brand,name,price,stock,sort_order&is_active=eq.true&order=sort_order.asc");
-    return res.status(200).json({ ok: true, products });
+    const [products,images] = await Promise.all([
+      supabaseRequest("/rest/v1/products?select=product_key,category,brand,name,price,stock,sort_order&is_active=eq.true&order=sort_order.asc"),
+      supabaseRequest("/rest/v1/product_images?select=product_key,image_path")
+    ]);
+    const imageMap = new Map((images||[]).map(item => [String(item.product_key), item.image_path]));
+    const withImages = products.map(product => ({
+      ...product,
+      image_url: imageMap.has(String(product.product_key))
+        ? process.env.SUPABASE_URL.replace(/\/$/, "") + "/storage/v1/object/public/product-images/" + String(imageMap.get(String(product.product_key))).split("/").map(encodeURIComponent).join("/")
+        : null
+    }));
+    return res.status(200).json({ ok: true, products: withImages });
   } catch (error) {
     console.error("Products API failed:", error.message);
     return res.status(500).json({ error: "Не удалось загрузить каталог" });
