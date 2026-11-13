@@ -33,7 +33,7 @@ module.exports=async function handler(req,res){
    const botToken=process.env.TELEGRAM_BOT_TOKEN;
    const webhookSecret=process.env.CLIENT_TELEGRAM_WEBHOOK_SECRET;
    if(!botToken||!webhookSecret)return send(res,500,{error:"Не задан CLIENT_TELEGRAM_WEBHOOK_SECRET в Vercel"});
-   const host=String(process.env.VERCEL_PROJECT_PRODUCTION_URL||"kuper-shop.vercel.app").replace(/\\/$/,"");
+   const host=String(process.env.VERCEL_PROJECT_PRODUCTION_URL||"kuper-shop.vercel.app").replace(/\/$/,"");
    const webhookUrl="https://"+host+"/api/client-bot-webhook";
    const tg=await fetch("https://api.telegram.org/bot"+botToken+"/setWebhook",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:webhookUrl,secret_token:webhookSecret,allowed_updates:["message"],drop_pending_updates:false})});
    const result=await tg.json().catch(()=>({ok:false,description:"Некорректный ответ Telegram"}));
