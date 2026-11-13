@@ -67,6 +67,17 @@
   .age-accept{background:var(--accent);border:1px solid var(--accent);color:#fff}
   .age-decline{background:var(--card2);border:1px solid var(--border);color:var(--text)}
   .age-denied{margin-top:16px;color:var(--danger);font-size:13px;line-height:1.45}
+
+  .admin-login{max-width:420px;margin:12px auto;padding:18px;border:1px solid var(--border);border-radius:14px;background:var(--card)}
+  .admin-login h3{margin:0 0 8px}.admin-login p,.admin-muted{color:var(--muted);font-size:13px;line-height:1.45}
+  .admin-login input{width:100%;padding:13px;margin:7px 0 12px;border:1px solid var(--border);border-radius:10px;background:var(--card2);color:var(--text);font:inherit}
+  .admin-order{padding:14px;margin:12px 0;border:1px solid var(--border);border-radius:14px;background:var(--card)}
+  .admin-order-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}
+  .admin-order select{padding:9px;border:1px solid var(--border);border-radius:9px;background:var(--card2);color:var(--text);font:inherit;max-width:100%}
+  .admin-order p{margin:5px 0;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+  .admin-order-items{margin:9px 0;padding:9px;border-radius:9px;background:var(--card2);font-size:13px;line-height:1.55}
+  .admin-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+
 </style>
 </head>
 <body>
@@ -1027,10 +1038,94 @@ async function submitOrder(total){
 function resetAll(){ cart={}; deliveryOn=true; updateBadge(); renderGrid(); closeForm(); closeCart(); toast("Спасибо за заказ!"); }
 let tapCount=0, tapTimer=null;
 function tapBrand(){ tapCount++; clearTimeout(tapTimer); tapTimer = setTimeout(()=>{tapCount=0}, 800); if(tapCount>=5){ tapCount=0; askAdmin(); } }
-function askAdmin(){ const pass = prompt("Введите код администратора:"); if(pass === "kuper"){ openAdmin(); } else if(pass !== null){ toast("Неверный код"); } }
-function openAdmin(){ renderAdmin(); document.getElementById("overlay").classList.add("show"); document.getElementById("adminSheet").classList.add("show"); }
-function closeAdmin(){ document.getElementById("overlay").classList.remove("show"); document.getElementById("adminSheet").classList.remove("show"); renderHeader(); renderPromos(); renderGrid(); }
-function renderAdmin(){ document.getElementById("adminBody").innerHTML = `<div class="admin-sec"><h3>Название и Аватарка</h3><div class="field"><label>Название магазина</label><input id="aName" value="${escapeHtml(SETTINGS.shopName)}"></div><div class="field"><label>Аватарка (файл)</label><input type="file" id="aAvatar" accept="image/*" onchange="handleAvatar(event)"></div></div><div class="admin-sec"><h3>Реквизиты для перевода</h3><div class="field"><textarea id="aReqs" rows="5">${escapeHtml(SETTINGS.reqs)}</textarea></div></div><div class="admin-sec"><h3>Афиши акций</h3><div id="aPromosList">${SETTINGS.promos.map((p,i)=>`<div class="promo-admin"><div class="pa-text">${escapeHtml(p.text)}</div><button class="pa-del" onclick="delPromo(${i})">Удалить</button></div>`).join("")}</div><div class="field" style="margin-top:10px"><label>Текст новой акции</label><input id="aPromoText" placeholder="Скидка 10%..."><label style="margin-top:8px">Картинка (файл)</label><input type="file" id="aPromoImg" accept="image/*"></div><button class="btn-primary" onclick="addPromo()" style="padding:10px;font-size:14px">Добавить акцию</button></div><button class="btn-primary" onclick="saveAdmin()">Сохранить настройки</button><button class="btn-secondary" onclick="closeAdmin()">Закрыть</button>`; }
+
+const ADMIN_TOKEN_KEY="ks_admin_access_token";
+function askAdmin(){ openAdmin(); }
+function getAdminToken(){ try{return sessionStorage.getItem(ADMIN_TOKEN_KEY)||"";}catch(e){return "";} }
+function setAdminToken(token){ try{sessionStorage.setItem(ADMIN_TOKEN_KEY,token);}catch(e){} }
+function clearAdminToken(){ try{sessionStorage.removeItem(ADMIN_TOKEN_KEY);}catch(e){} }
+async function adminRequest(payload){
+  const token=getAdminToken();
+  const response=await fetch("/api/admin",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json",...(token?{Authorization:"Bearer "+token}:{})},body:JSON.stringify(payload)});
+  const data=await response.json().catch(()=>({error:"Некорректный ответ сервера"}));
+  if(!response.ok) throw new Error(data.error||"Ошибка административного API");
+  return data;
+}
+function openAdmin(){
+  document.getElementById("overlay").classList.add("show");
+  document.getElementById("adminSheet").classList.add("show");
+  if(getAdminToken()) loadAdminOrders(); else renderAdminLogin();
+}
+function closeAdmin(){
+  document.getElementById("overlay").classList.remove("show");
+  document.getElementById("adminSheet").classList.remove("show");
+  renderHeader(); renderPromos(); renderGrid();
+}
+function renderAdminLogin(errorText=""){
+  document.getElementById("adminBody").innerHTML=`<div class="admin-login">
+    <h3>Вход для сотрудников</h3>
+    <p>Войдите через учётную запись Supabase, добавленную в список администраторов магазина.</p>
+    <form onsubmit="adminLogin(event)">
+      <label for="adminEmail">Электронная почта</label>
+      <input id="adminEmail" type="email" autocomplete="username" required>
+      <label for="adminPassword">Пароль</label>
+      <input id="adminPassword" type="password" autocomplete="current-password" required>
+      <button class="btn-primary" type="submit">Войти</button>
+    </form>
+    ${errorText?`<p role="alert" style="color:var(--danger)">${escapeHtml(errorText)}</p>`:""}
+  </div>`;
+}
+async function adminLogin(event){
+  event.preventDefault();
+  const email=document.getElementById("adminEmail").value.trim();
+  const password=document.getElementById("adminPassword").value;
+  const body=document.getElementById("adminBody");
+  body.innerHTML='<div class="empty">Проверяем доступ…</div>';
+  try{
+    const result=await adminRequest({action:"login",email,password});
+    setAdminToken(result.access_token);
+    await loadAdminOrders();
+  }catch(error){clearAdminToken();renderAdminLogin(error.message);}
+}
+async function loadAdminOrders(){
+  const body=document.getElementById("adminBody");
+  body.innerHTML='<div class="empty">Загружаем заказы…</div>';
+  try{
+    const result=await adminRequest({action:"orders"});
+    renderAdminOrders(result.orders||[]);
+  }catch(error){
+    clearAdminToken();
+    renderAdminLogin(error.message||"Сессия завершена. Войдите снова.");
+  }
+}
+function renderAdminOrders(orders){
+  const statuses={new:"Новый",processing:"В работе",completed:"Выполнен",cancelled:"Отменён"};
+  const cards=orders.map(order=>{
+    const items=Array.isArray(order.order_items)?order.order_items:[];
+    return `<section class="admin-order">
+      <div class="admin-order-head"><strong>Заказ KS-${escapeHtml(String(order.order_number))}</strong><strong>${Number(order.total)||0} ₽</strong></div>
+      <p><b>Клиент:</b> ${escapeHtml(order.customer_name||"—")}</p>
+      <p><b>Телефон:</b> <a href="tel:${escapeHtml(order.phone||"")}">${escapeHtml(order.phone||"—")}</a></p>
+      <p><b>Адрес:</b> ${escapeHtml(order.address||"—")}</p>
+      <p><b>Дата:</b> ${escapeHtml(order.created_at?new Date(order.created_at).toLocaleString("ru-RU"):"—")}</p>
+      <div class="admin-order-items">${items.map(item=>`${escapeHtml(item.product_name)} × ${Number(item.quantity)||0} — ${(Number(item.unit_price)||0)*(Number(item.quantity)||0)} ₽`).join("<br>")||"Позиции заказа не найдены"}</div>
+      <p>Товары: ${Number(order.subtotal)||0} ₽ · Доставка: ${Number(order.delivery_fee)||0} ₽</p>
+      <label>Статус заказа</label>
+      <select onchange="updateAdminOrderStatus('${escapeHtml(order.id)}',this.value)">
+        ${Object.entries(statuses).map(([value,label])=>`<option value="${value}" ${order.status===value?"selected":""}>${label}</option>`).join("")}
+      </select>
+    </section>`;
+  }).join("");
+  document.getElementById("adminBody").innerHTML=`<div class="admin-actions">
+    <button class="btn-primary" onclick="loadAdminOrders()">Обновить заказы</button>
+    <button class="btn-secondary" onclick="adminLogout()">Выйти</button>
+  </div><p class="admin-muted">Последние ${orders.length} заказов</p>${cards||'<div class="empty">Заказов пока нет</div>'}`;
+}
+async function updateAdminOrderStatus(id,status){
+  try{await adminRequest({action:"update_status",order_id:id,status});toast("Статус заказа обновлён");}
+  catch(error){toast(error.message||"Не удалось обновить статус");loadAdminOrders();}
+}
+function adminLogout(){clearAdminToken();renderAdminLogin("Вы вышли из панели.");}
 function handleAvatar(e){ const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (ev)=>{ SETTINGS.avatar = ev.target.result; }; reader.readAsDataURL(file); }
 function delPromo(i){ SETTINGS.promos.splice(i,1); saveSettings(SETTINGS); renderAdmin(); }
 function addPromo(){ const text = document.getElementById("aPromoText").value.trim(); const file = document.getElementById("aPromoImg").files[0]; if(!text){ toast("Введите текст"); return; } if(file){ const reader = new FileReader(); reader.onload = (ev)=>{ SETTINGS.promos.push({text, img: ev.target.result}); saveSettings(SETTINGS); renderAdmin(); }; reader.readAsDataURL(file); } else { SETTINGS.promos.push({text, img:""}); saveSettings(SETTINGS); renderAdmin(); } }
