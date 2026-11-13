@@ -1191,9 +1191,18 @@ function renderAdminPartners(partners,invite=null){
  const inviteCard=invite?`<section class="admin-sec"><h3>Приглашение создано</h3><p>Реферальный код: <b>${escapeHtml(invite.partner.referral_code)}</b></p><p>Готовая ссылка для партнёра (действует 7 дней):</p><input readonly value="${escapeHtml(invite.invite_link||"")}" id="newPartnerInviteLink"><button class="btn-secondary" onclick="copyPartnerInviteLink()">Скопировать ссылку</button><p class="hint">Отправьте эту ссылку партнёру. Он откроет бота и автоматически активирует приглашение. Одноразовый токен отдельно не показывается.</p></section>`:"";
  document.getElementById("adminBody").innerHTML=adminTabs("partners")+inviteCard+`
  <section class="admin-add"><h3>Пригласить партнёра</h3><div class="field"><label>Имя или название партнёра</label><input id="newPartnerName" maxlength="120" placeholder="Например, Алексей"></div><button class="btn-primary" onclick="createAdminPartnerInvite()">Создать приглашение</button></section>
- <div class="admin-actions"><button class="btn-primary" onclick="setupAdminPartnerWebhook()">Подключить Telegram-бота</button><button class="btn-secondary" onclick="loadAdminPartners()">Обновить</button><button class="btn-secondary" onclick="adminLogout()">Выйти</button></div><p class="hint">Кнопка безопасно регистрирует webhook на сервере. Секреты в браузер не передаются.</p>
+ <div class="admin-actions"><button class="btn-primary" onclick="setupAdminClientBotWebhook()">Подключить клиентского бота</button><button class="btn-primary" onclick="setupAdminPartnerWebhook()">Подключить Telegram-бота</button><button class="btn-secondary" onclick="loadAdminPartners()">Обновить</button><button class="btn-secondary" onclick="adminLogout()">Выйти</button></div><p class="hint">Кнопка безопасно регистрирует webhook на сервере. Секреты в браузер не передаются.</p>
  ${cards||'<div class="empty">Партнёров пока нет</div>'}`;
 }
+async function setupAdminClientBotWebhook(){
+ if(!confirm("Подключить webhook клиентского Telegram-бота KuperShop?"))return;
+ try{
+  toast("Подключаем клиентского бота…");
+  const result=await adminRequest({action:"setup_client_bot_webhook"});
+  toast(result.description||"Клиентский бот подключён");
+ }catch(error){toast(error.message||"Не удалось подключить клиентского бота");}
+}
+
 async function setupAdminPartnerWebhook(){
  if(!confirm("Зарегистрировать webhook партнёрского Telegram-бота?"))return;
  try{
