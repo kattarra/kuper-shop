@@ -879,9 +879,10 @@ const RAW_DATA = `
 Кальяны|Ростомания|Гриндер с логотипом ODENS|650|1
 `;
 
-let PRODUCTS = RAW_DATA.trim().split('\n').map(line => {
+let PRODUCTS = RAW_DATA.trim().split('\n').map((line, index) => {
   const parts = line.split('|');
   return {
+    product_key: String(index),
     cat: parts[0],
     brand: parts[1],
     name: parts[2],
@@ -903,7 +904,30 @@ function loadSettings(){ try{ return Object.assign({}, DEFAULTS, JSON.parse(loca
 function saveSettings(s){ localStorage.setItem("ks_settings", JSON.stringify(s)); }
 let SETTINGS = loadSettings();
 let cart = {}; let activeCat = "Все"; let searchQuery = ""; let deliveryOn = true;
-const CATS = ["Все", ...Array.from(new Set(PRODUCTS.map(p=>p.cat)))];
+let CATS = ["Все", ...Array.from(new Set(PRODUCTS.map(p=>p.cat)))];
+let catalogLoadedFromSupabase = false;
+async function loadCatalog(){
+  const grid=document.getElementById("grid");
+  if(grid) grid.innerHTML = '<div class="empty">Загружаем каталог…</div>';
+  try {
+    const response=await fetch("/api/products",{method:"GET",cache:"no-store",headers:{"Accept":"application/json"}});
+    const result=await response.json();
+    if(!response.ok || !result.ok || !Array.isArray(result.products)) throw new Error(result.error||"Некорректный ответ каталога");
+    const next=result.products.map(p=>({product_key:String(p.product_key),cat:p.category,brand:p.brand||"",name:p.name,price:Number(p.price),stock:Number(p.stock)}));
+    if(next.length!==781) console.warn("[KuperShop] Unexpected live catalog size:",next.length);
+    if(next.some(p=>!p.product_key || !p.cat || !p.name || !Number.isFinite(p.price) || !Number.isFinite(p.stock))) throw new Error("В каталоге обнаружены некорректные товары");
+    PRODUCTS=next;
+    CATS=["Все",...Array.from(new Set(PRODUCTS.map(p=>p.cat)))];
+    cart={};
+    catalogLoadedFromSupabase=true;
+    console.info("[KuperShop] Live catalog loaded:",PRODUCTS.length);
+    renderCats(); renderGrid(); updateBadge();
+  } catch(error) {
+    console.error("[KuperShop] Live catalog load failed:",error);
+    if(grid) grid.innerHTML='<div class="empty">Не удалось загрузить каталог. Обновите страницу или попробуйте позже.</div>';
+    toast("Не удалось загрузить каталог");
+  }
+}
 
 function renderHeader(){ document.querySelector("header h1").innerHTML = SETTINGS.shopName.replace("Shop","<span>Shop</span>"); const av = document.getElementById("avatar"); if(SETTINGS.avatar){ av.innerHTML = `<img src="${SETTINGS.avatar}" alt="">`; } else { av.textContent = SETTINGS.shopName.slice(0,2).toUpperCase(); av.style.background = "var(--accent)"; } }
 function renderPromos(){ const el = document.getElementById("promos"); if(!SETTINGS.promos.length){ el.style.display="none"; return; } el.style.display="flex"; el.innerHTML = SETTINGS.promos.map((p)=>`<div class="promo" onclick="toast('Акция!')">${p.img?`<img src="${p.img}" alt="">`:``}<div class="promo-text">${escapeHtml(p.text)}</div></div>`).join(""); }
@@ -933,7 +957,7 @@ async function submitOrder(total){
  const button=document.querySelector("#formBody .btn-primary");
  if(button){button.disabled=true;button.textContent="Отправляем...";}
  try{
-  const payload={name,phone,address:addr,delivery:deliveryOn,items:cartItems().map(x=>({product_key:String(x.i),quantity:x.qty}))};
+  const payload={name,phone,address:addr,delivery:deliveryOn,items:cartItems().map(x=>({product_key:x.p.product_key,quantity:x.qty}))};
   console.info("[KuperShop] Sending order", {itemCount:payload.items.length, origin:window.location.origin});
   const response=await fetch("https://kuper-shop.vercel.app/api/orders",{method:"POST",mode:"cors",cache:"no-store",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
   const responseText=await response.text();
@@ -961,7 +985,7 @@ function addPromo(){ const text = document.getElementById("aPromoText").value.tr
 function saveAdmin(){ SETTINGS.shopName = document.getElementById("aName").value.trim() || "KuperShop"; SETTINGS.reqs = document.getElementById("aReqs").value.trim(); saveSettings(SETTINGS); toast("Сохранено!"); closeAdmin(); }
 function toast(msg){ const el = document.getElementById("toast"); el.textContent = msg; el.classList.add("show"); setTimeout(()=>el.classList.remove("show"), 2000); }
 function escapeHtml(s){ return s.replace(/[&<>'"]/g, tag=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag]||tag)); }
-document.addEventListener("DOMContentLoaded", ()=>{ renderHeader(); renderPromos(); renderCats(); renderGrid(); updateBadge(); });
+document.addEventListener("DOMContentLoaded", ()=>{ renderHeader(); renderPromos(); renderCats(); updateBadge(); loadCatalog(); });
 </script>
 </body>
 </html>
