@@ -1188,7 +1188,7 @@ function renderAdminPartners(partners,invite=null){
    ${p.status!=="blocked"?`<button class="btn-secondary" onclick="blockAdminPartner('${escapeHtml(p.id)}')">Заблокировать партнёра</button>`:""}
   </section>`;
  }).join("");
- const inviteCard=invite?`<section class="admin-sec"><h3>Приглашение создано</h3><p>Реферальный код: <b>${escapeHtml(invite.partner.referral_code)}</b></p><p>Одноразовый токен для будущего Telegram-бота (сохраните сейчас):</p><input readonly value="${escapeHtml(invite.invite_token)}" id="newPartnerInviteToken"><button class="btn-secondary" onclick="copyPartnerInviteToken()">Скопировать токен</button><p class="hint">Токен показывается только при создании. Срок действия — 7 дней. До подключения Telegram-бота партнёр не сможет активировать его самостоятельно.</p></section>`:"";
+ const inviteCard=invite?`<section class="admin-sec"><h3>Приглашение создано</h3><p>Реферальный код: <b>${escapeHtml(invite.partner.referral_code)}</b></p><p>Готовая ссылка для партнёра (действует 7 дней):</p><input readonly value="${escapeHtml(invite.invite_link||"")}" id="newPartnerInviteLink"><button class="btn-secondary" onclick="copyPartnerInviteLink()">Скопировать ссылку</button><p class="hint">Отправьте эту ссылку партнёру. Он откроет бота и автоматически активирует приглашение. Одноразовый токен отдельно не показывается.</p></section>`:"";
  document.getElementById("adminBody").innerHTML=adminTabs("partners")+inviteCard+`
  <section class="admin-add"><h3>Пригласить партнёра</h3><div class="field"><label>Имя или название партнёра</label><input id="newPartnerName" maxlength="120" placeholder="Например, Алексей"></div><button class="btn-primary" onclick="createAdminPartnerInvite()">Создать приглашение</button></section>
  <div class="admin-actions"><button class="btn-primary" onclick="setupAdminPartnerWebhook()">Подключить Telegram-бота</button><button class="btn-secondary" onclick="loadAdminPartners()">Обновить</button><button class="btn-secondary" onclick="adminLogout()">Выйти</button></div><p class="hint">Кнопка безопасно регистрирует webhook на сервере. Секреты в браузер не передаются.</p>
@@ -1213,11 +1213,11 @@ async function blockAdminPartner(id){
  try{await adminRequest({action:"block_partner",partner_id:id});toast("Партнёр заблокирован");await loadAdminPartners();}
  catch(error){toast(error.message||"Не удалось заблокировать партнёра");}
 }
-function copyPartnerInviteToken(){
- const input=document.getElementById("newPartnerInviteToken");if(!input)return;
+function copyPartnerInviteLink(){
+ const input=document.getElementById("newPartnerInviteLink");if(!input)return;
  input.select();input.setSelectionRange(0,99999);
- if(navigator.clipboard?.writeText)navigator.clipboard.writeText(input.value).then(()=>toast("Токен скопирован")).catch(()=>toast("Выделите токен и скопируйте вручную"));
- else toast("Токен выделен — скопируйте его");
+ if(navigator.clipboard?.writeText)navigator.clipboard.writeText(input.value).then(()=>toast("Ссылка скопирована")).catch(()=>toast("Выделите ссылку и скопируйте вручную"));
+ else toast("Ссылка выделена — скопируйте её");
 }
 async function loadAdminProducts(){
  const body=document.getElementById("adminBody");body.innerHTML='<div class="empty">Загружаем каталог…</div>';

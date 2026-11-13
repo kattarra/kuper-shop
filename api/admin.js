@@ -107,7 +107,10 @@ module.exports=async function handler(req,res){
    const expiresAt=new Date(Date.now()+7*24*60*60*1000).toISOString();
    const created=await request(cfg.url+"/rest/v1/partners",{...serviceHeaders(cfg.service),Prefer:"return=representation"},{method:"POST",body:JSON.stringify([{display_name:displayName,referral_code:referralCode,status:"invited",invite_token_hash:inviteHash,invite_expires_at:expiresAt}])});
    if(!Array.isArray(created)||!created.length)throw new Error("Не удалось создать приглашение партнёра");
-   return send(res,201,{ok:true,partner:created[0],invite_token:inviteToken});
+   const botUsername=String(process.env.PARTNER_TELEGRAM_BOT_USERNAME||"").trim().replace(/^@/,"");
+   if(!/^[A-Za-z0-9_]{5,32}$/.test(botUsername))return send(res,500,{error:"Проверьте PARTNER_TELEGRAM_BOT_USERNAME в Vercel"});
+   const inviteLink="https://t.me/"+botUsername+"?start="+inviteToken;
+   return send(res,201,{ok:true,partner:created[0],invite_token:inviteToken,invite_link:inviteLink});
   }
   if(action==="block_partner"){
    const id=String(body.partner_id||"");
