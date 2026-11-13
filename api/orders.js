@@ -124,7 +124,7 @@ module.exports = async function handler(req, res) {
       items.push({ product_key: key, product_name: product.name, quantity, unit_price: product.price });
     }
     const subtotal = items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
-    const delivery_fee = body.delivery === false ? 0 : 150;
+    const delivery_fee = body.delivery === false ? 0 : 199;
     const total = subtotal + delivery_fee;
     stage = "insert_order";
     const created = await supabaseRequest("/rest/v1/orders", {
