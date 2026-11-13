@@ -1168,7 +1168,47 @@ async function updateAdminOrderStatus(id,status){
 }
 
 function adminTabs(active){
- return `<div class="admin-tabs"><button class="${active==="orders"?"active":""}" onclick="loadAdminOrders()">Заказы</button><button class="${active==="products"?"active":""}" onclick="loadAdminProducts()">Товары</button></div>`;
+ return `<div class="admin-tabs"><button class="${active==="orders"?"active":""}" onclick="loadAdminOrders()">Заказы</button><button class="${active==="products"?"active":""}" onclick="loadAdminProducts()">Товары</button><button class="${active==="partners"?"active":""}" onclick="loadAdminPartners()">Партнёры</button></div>`;
+}
+async function loadAdminPartners(){
+ const body=document.getElementById("adminBody");body.innerHTML='<div class="empty">Загружаем партнёров…</div>';
+ try{const result=await adminRequest({action:"partners"});renderAdminPartners(result.partners||[]);}
+ catch(error){toast(error.message||"Не удалось загрузить партнёров");}
+}
+function renderAdminPartners(partners,invite=null){
+ const cards=partners.map(p=>{
+  const s=p.stats||{},status=p.status==="active"?"Активен":p.status==="blocked"?"Заблокирован":"Ожидает подключения";
+  return `<section class="admin-order">
+   <div class="admin-order-head"><strong>${escapeHtml(p.display_name)}</strong><strong>${status}</strong></div>
+   <p><b>Реферальный код:</b> <code>${escapeHtml(p.referral_code)}</code></p>
+   <p><b>Telegram:</b> ${p.telegram_username?"@"+escapeHtml(p.telegram_username):"Не подключён"}</p>
+   <p>Клиенты: ${s.customers||0} · Заказы: ${s.orders||0}</p>
+   <p>Оборот: ${Number(s.revenue)||0} ₽</p>
+   <p>К выплате: ${Number(s.available)||0} ₽ · Выплачено: ${Number(s.paid)||0} ₽</p>
+   ${p.status!=="blocked"?`<button class="btn-secondary" onclick="blockAdminPartner('${escapeHtml(p.id)}')">Заблокировать партнёра</button>`:""}
+  </section>`;
+ }).join("");
+ const inviteCard=invite?`<section class="admin-sec"><h3>Приглашение создано</h3><p>Реферальный код: <b>${escapeHtml(invite.partner.referral_code)}</b></p><p>Одноразовый токен для будущего Telegram-бота (сохраните сейчас):</p><input readonly value="${escapeHtml(invite.invite_token)}" id="newPartnerInviteToken"><button class="btn-secondary" onclick="copyPartnerInviteToken()">Скопировать токен</button><p class="hint">Токен показывается только при создании. Срок действия — 7 дней. До подключения Telegram-бота партнёр не сможет активировать его самостоятельно.</p></section>`:"";
+ document.getElementById("adminBody").innerHTML=adminTabs("partners")+inviteCard+`
+ <section class="admin-add"><h3>Пригласить партнёра</h3><div class="field"><label>Имя или название партнёра</label><input id="newPartnerName" maxlength="120" placeholder="Например, Алексей"></div><button class="btn-primary" onclick="createAdminPartnerInvite()">Создать приглашение</button></section>
+ <div class="admin-actions"><button class="btn-secondary" onclick="loadAdminPartners()">Обновить</button><button class="btn-secondary" onclick="adminLogout()">Выйти</button></div>
+ ${cards||'<div class="empty">Партнёров пока нет</div>'}`;
+}
+async function createAdminPartnerInvite(){
+ const input=document.getElementById("newPartnerName"),name=input?.value.trim();if(!name){toast("Укажите имя партнёра");return;}
+ try{const created=await adminRequest({action:"create_partner_invite",display_name:name});const result=await adminRequest({action:"partners"});renderAdminPartners(result.partners||[],created);}
+ catch(error){toast(error.message||"Не удалось создать приглашение");}
+}
+async function blockAdminPartner(id){
+ if(!confirm("Заблокировать партнёра? Новые заказы перестанут закрепляться за ним."))return;
+ try{await adminRequest({action:"block_partner",partner_id:id});toast("Партнёр заблокирован");await loadAdminPartners();}
+ catch(error){toast(error.message||"Не удалось заблокировать партнёра");}
+}
+function copyPartnerInviteToken(){
+ const input=document.getElementById("newPartnerInviteToken");if(!input)return;
+ input.select();input.setSelectionRange(0,99999);
+ if(navigator.clipboard?.writeText)navigator.clipboard.writeText(input.value).then(()=>toast("Токен скопирован")).catch(()=>toast("Выделите токен и скопируйте вручную"));
+ else toast("Токен выделен — скопируйте его");
 }
 async function loadAdminProducts(){
  const body=document.getElementById("adminBody");body.innerHTML='<div class="empty">Загружаем каталог…</div>';
