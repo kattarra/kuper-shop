@@ -29,6 +29,18 @@ module.exports=async function handler(req,res){
   }
   const auth=await verifyAdmin(req,cfg);
 
+  if(action==="setup_partner_webhook"){
+   const botToken=process.env.PARTNER_TELEGRAM_BOT_TOKEN;
+   const webhookSecret=process.env.PARTNER_TELEGRAM_WEBHOOK_SECRET;
+   if(!botToken||!webhookSecret)return send(res,500,{error:"Не заданы PARTNER_TELEGRAM_BOT_TOKEN или PARTNER_TELEGRAM_WEBHOOK_SECRET в Vercel"});
+   const host=String(process.env.VERCEL_PROJECT_PRODUCTION_URL||"kuper-shop.vercel.app").replace(/^https?:\\/\\//,"").replace(/\\/$/,"");
+   const webhookUrl="https://"+host+"/api/partner-bot-webhook";
+   const tg=await fetch("https://api.telegram.org/bot"+botToken+"/setWebhook",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:webhookUrl,secret_token:webhookSecret,allowed_updates:["message"]})});
+   const result=await tg.json().catch(()=>({ok:false,description:"Некорректный ответ Telegram"}));
+   if(!tg.ok||!result.ok){console.error("Partner webhook setup failed:",result.description||tg.status);return send(res,502,{error:"Telegram не принял webhook: "+String(result.description||"ошибка API").slice(0,180)});}
+   return send(res,200,{ok:true,webhook_url:webhookUrl,description:result.description||"Webhook установлен"});
+  }
+
   if(action==="products"){
    const products=await request(cfg.url+"/rest/v1/products?select=product_key,category,brand,name,price,stock,is_active,sort_order&order=sort_order.asc",serviceHeaders(cfg.service));
    return send(res,200,{ok:true,products});
