@@ -1191,9 +1191,18 @@ function renderAdminPartners(partners,invite=null){
  const inviteCard=invite?`<section class="admin-sec"><h3>Приглашение создано</h3><p>Реферальный код: <b>${escapeHtml(invite.partner.referral_code)}</b></p><p>Одноразовый токен для будущего Telegram-бота (сохраните сейчас):</p><input readonly value="${escapeHtml(invite.invite_token)}" id="newPartnerInviteToken"><button class="btn-secondary" onclick="copyPartnerInviteToken()">Скопировать токен</button><p class="hint">Токен показывается только при создании. Срок действия — 7 дней. До подключения Telegram-бота партнёр не сможет активировать его самостоятельно.</p></section>`:"";
  document.getElementById("adminBody").innerHTML=adminTabs("partners")+inviteCard+`
  <section class="admin-add"><h3>Пригласить партнёра</h3><div class="field"><label>Имя или название партнёра</label><input id="newPartnerName" maxlength="120" placeholder="Например, Алексей"></div><button class="btn-primary" onclick="createAdminPartnerInvite()">Создать приглашение</button></section>
- <div class="admin-actions"><button class="btn-secondary" onclick="loadAdminPartners()">Обновить</button><button class="btn-secondary" onclick="adminLogout()">Выйти</button></div>
+ <div class="admin-actions"><button class="btn-primary" onclick="setupAdminPartnerWebhook()">Подключить Telegram-бота</button><button class="btn-secondary" onclick="loadAdminPartners()">Обновить</button><button class="btn-secondary" onclick="adminLogout()">Выйти</button></div><p class="hint">Кнопка безопасно регистрирует webhook на сервере. Секреты в браузер не передаются.</p>
  ${cards||'<div class="empty">Партнёров пока нет</div>'}`;
 }
+async function setupAdminPartnerWebhook(){
+ if(!confirm("Зарегистрировать webhook партнёрского Telegram-бота?"))return;
+ try{
+  toast("Подключаем Telegram-бота…");
+  const result=await adminRequest({action:"setup_partner_webhook"});
+  toast(result.description||"Webhook успешно подключён");
+ }catch(error){toast(error.message||"Не удалось подключить Telegram-бота");}
+}
+
 async function createAdminPartnerInvite(){
  const input=document.getElementById("newPartnerName"),name=input?.value.trim();if(!name){toast("Укажите имя партнёра");return;}
  try{const created=await adminRequest({action:"create_partner_invite",display_name:name});const result=await adminRequest({action:"partners"});renderAdminPartners(result.partners||[],created);}
