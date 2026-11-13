@@ -67,6 +67,44 @@ module.exports=async function handler(req,res){
    await request(cfg.url+"/rest/v1/product_images?on_conflict=product_key",{...serviceHeaders(cfg.service),Prefer:"resolution=merge-duplicates,return=minimal"},{method:"POST",body:JSON.stringify({product_key:key,image_path:imagePath,updated_at:new Date().toISOString()})});
    return send(res,200,{ok:true,image_url:cfg.url+"/storage/v1/object/public/product-images/"+imagePath});
   }
+
+  if(action==="partners"){
+   const [partners,customers,links,commissions]=await Promise.all([
+    request(cfg.url+"/rest/v1/partners?select=id,display_name,referral_code,status,telegram_id,telegram_username,created_at,activated_at,invite_expires_at&order=created_at.desc",serviceHeaders(cfg.service)),
+    request(cfg.url+"/rest/v1/referral_customers?select=partner_id",serviceHeaders(cfg.service)),
+    request(cfg.url+"/rest/v1/referral_order_links?select=partner_id",serviceHeaders(cfg.service)),
+    request(cfg.url+"/rest/v1/referral_commissions?select=partner_id,commission_amount,status,subtotal",serviceHeaders(cfg.service))
+   ]);
+   const stats={};
+   for(const p of partners)stats[p.id]={customers:0,orders:0,revenue:0,available:0,paid:0,pending:0,reversed:0};
+   for(const x of customers)if(stats[x.partner_id])stats[x.partner_id].customers++;
+   for(const x of links)if(stats[x.partner_id])stats[x.partner_id].orders++;
+   for(const x of commissions)if(stats[x.partner_id]){
+    const s=stats[x.partner_id];s.revenue+=Number(x.subtotal)||0;
+    s[x.status]=(s[x.status]||0)+(Number(x.commission_amount)||0);
+   }
+   return send(res,200,{ok:true,partners:partners.map(p=>({...p,stats:stats[p.id]}))});
+  }
+  if(action==="create_partner_invite"){
+   const displayName=String(body.display_name||"").trim();
+   if(!displayName||displayName.length>120)return send(res,400,{error:"Укажите имя партнёра (до 120 символов)"});
+   const crypto=require("crypto");
+   const inviteToken=crypto.randomBytes(24).toString("hex");
+   const inviteHash=crypto.createHash("sha256").update(inviteToken).digest("hex");
+   const referralCode=crypto.randomBytes(5).toString("hex").toUpperCase();
+   const expiresAt=new Date(Date.now()+7*24*60*60*1000).toISOString();
+   const created=await request(cfg.url+"/rest/v1/partners",{...serviceHeaders(cfg.service),Prefer:"return=representation"},{method:"POST",body:JSON.stringify([{display_name:displayName,referral_code:referralCode,status:"invited",invite_token_hash:inviteHash,invite_expires_at:expiresAt}])});
+   if(!Array.isArray(created)||!created.length)throw new Error("Не удалось создать приглашение партнёра");
+   return send(res,201,{ok:true,partner:created[0],invite_token:inviteToken});
+  }
+  if(action==="block_partner"){
+   const id=String(body.partner_id||"");
+   if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:"Некорректный партнёр"});
+   const updated=await request(cfg.url+"/rest/v1/partners?id=eq."+encodeURIComponent(id),{...serviceHeaders(cfg.service),Prefer:"return=representation"},{method:"PATCH",body:JSON.stringify({status:"blocked",invite_token_hash:null,invite_expires_at:null,updated_at:new Date().toISOString()})});
+   if(!Array.isArray(updated)||!updated.length)return send(res,404,{error:"Партнёр не найден"});
+   return send(res,200,{ok:true,partner:updated[0]});
+  }
+
   if(action==="orders"){
    const orders=await request(cfg.url+"/rest/v1/orders?select=id,order_number,customer_name,phone,address,comment,subtotal,delivery_fee,total,status,created_at,order_items(id,product_name,quantity,unit_price)&order=created_at.desc&limit=100",serviceHeaders(cfg.service));
    return send(res,200,{ok:true,orders});
