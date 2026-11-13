@@ -12,6 +12,9 @@ create table if not exists public.partners (
   referral_code text not null unique,
   status text not null default 'invited'
     check (status in ('invited','active','blocked')),
+  invite_token_hash text unique,
+  invite_expires_at timestamptz,
+  activated_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -94,16 +97,18 @@ begin
     raise exception 'Invalid phone hash';
   end if;
 
-  if not exists (
+  if p_partner_id is not null and not exists (
     select 1 from public.partners
     where id = p_partner_id and status = 'active'
   ) then
     raise exception 'Partner is not active';
   end if;
 
-  insert into public.referral_customers(phone_hash, partner_id)
-  values (p_phone_hash, p_partner_id)
-  on conflict (phone_hash) do nothing;
+  if p_partner_id is not null then
+    insert into public.referral_customers(phone_hash, partner_id)
+    values (p_phone_hash, p_partner_id)
+    on conflict (phone_hash) do nothing;
+  end if;
 
   select partner_id into v_partner_id
   from public.referral_customers
