@@ -25,7 +25,7 @@
   .cat.active{background:var(--accent);border-color:var(--accent);color:#fff}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
-  .thumb{height:90px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;text-align:center;padding:8px;color:#fff;letter-spacing:.5px}
+  .thumb{height:110px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;text-align:center;padding:8px;color:#fff;letter-spacing:.5px;overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover}
   .card-body{padding:10px;display:flex;flex-direction:column;gap:6px;flex:1}
   .name{font-size:13px;line-height:1.3;min-height:34px}
   .stock{font-size:11px;color:var(--green)} .stock.out{color:var(--danger)}
@@ -77,6 +77,19 @@
   .admin-order p{margin:5px 0;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
   .admin-order-items{margin:9px 0;padding:9px;border-radius:9px;background:var(--card2);font-size:13px;line-height:1.55}
   .admin-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+  .admin-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 14px}
+  .admin-tabs button{padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--card2);color:var(--text);font:inherit}
+  .admin-tabs button.active{background:var(--accent);border-color:var(--accent)}
+  .admin-product{padding:13px;margin:10px 0;border:1px solid var(--border);border-radius:13px;background:var(--card)}
+  .admin-product-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}
+  .admin-product .field{margin:9px 0}
+  .admin-product .field input,.admin-add .field input{width:100%;padding:10px;background:var(--card2);border:1px solid var(--border);border-radius:9px;color:var(--text);font:inherit}
+  .admin-product-actions{display:flex;gap:8px;margin-top:10px}
+  .admin-product-actions button{flex:1;padding:10px;border:0;border-radius:9px;background:var(--accent);color:#fff;font:inherit}
+  .admin-product-actions button.secondary{background:var(--card2);border:1px solid var(--border);color:var(--text)}
+  .admin-add{padding:14px;border:1px dashed var(--border);border-radius:13px;margin:12px 0 18px}
+  .admin-add h3{margin:0 0 10px;color:var(--gold);font-size:14px}
+  .admin-count{font-size:12px;color:var(--muted);margin:8px 0}
 
 </style>
 </head>
@@ -976,7 +989,7 @@ async function loadCatalog(){
     const response=await fetch("/api/products",{method:"GET",cache:"no-store",headers:{"Accept":"application/json"}});
     const result=await response.json();
     if(!response.ok || !result.ok || !Array.isArray(result.products)) throw new Error(result.error||"Некорректный ответ каталога");
-    const next=result.products.map(p=>({product_key:String(p.product_key),cat:p.category,brand:p.brand||"",name:p.name,price:Number(p.price),stock:Number(p.stock)}));
+    const next=result.products.map(p=>({product_key:String(p.product_key),cat:p.category,brand:p.brand||"",name:p.name,price:Number(p.price),stock:Number(p.stock),image_url:p.image_url||""}));
     if(next.length!==781) console.warn("[KuperShop] Unexpected live catalog size:",next.length);
     if(next.some(p=>!p.product_key || !p.cat || !p.name || !Number.isFinite(p.price) || !Number.isFinite(p.stock))) throw new Error("В каталоге обнаружены некорректные товары");
     PRODUCTS=next;
@@ -996,7 +1009,7 @@ function renderHeader(){ document.querySelector("header h1").innerHTML = SETTING
 function renderPromos(){ const el = document.getElementById("promos"); if(!SETTINGS.promos.length){ el.style.display="none"; return; } el.style.display="flex"; el.innerHTML = SETTINGS.promos.map((p)=>`<div class="promo" onclick="toast('Акция!')">${p.img?`<img src="${p.img}" alt="">`:``}<div class="promo-text">${escapeHtml(p.text)}</div></div>`).join(""); }
 function renderCats(){ document.getElementById("cats").innerHTML = CATS.map(c=>`<div class="cat ${c===activeCat?'active':''}" onclick="setCat('${c}')">${c}</div>`).join(""); }
 function brandColor(b){ let hash = 0; for (let i = 0; i < b.length; i++) hash = b.charCodeAt(i) + ((hash << 5) - hash); const c = (hash & 0x00FFFFFF).toString(16).toUpperCase(); return '#' + "00000".substring(0, 6 - c.length) + c; }
-function renderGrid(){ const q=searchQuery.trim().toLocaleLowerCase("ru"); const list=PRODUCTS.map((p,index)=>({p,index})).filter(x=>(activeCat==="Все"||x.p.cat===activeCat)&&(!q||x.p.name.toLocaleLowerCase("ru").includes(q))); const el=document.getElementById("grid"); if(!list.length){ el.innerHTML=`<div class="empty">${q?"Ничего не найдено":"Нет товаров"}</div>`; return; } el.innerHTML=list.map(({p,index})=>{ const inCart=cart[index]||0; const avail=p.stock-inCart; const out=avail<=0; return `<div class="card"><div class="thumb" style="background:${brandColor(p.brand)}">${escapeHtml(p.brand)}</div><div class="card-body"><div class="name">${escapeHtml(p.name)}</div><div class="stock ${out?'out':''}">${out?'Нет в наличии':'В наличии: '+avail+' шт'}</div><div class="row"><div class="price">${p.price} ₽</div><button class="add" ${out?'disabled':''} onclick="addToCart(${index})">${out?'Нет':'Купить'}</button></div></div></div>`; }).join(""); }
+function renderGrid(){ const q=searchQuery.trim().toLocaleLowerCase("ru"); const list=PRODUCTS.map((p,index)=>({p,index})).filter(x=>(activeCat==="Все"||x.p.cat===activeCat)&&(!q||x.p.name.toLocaleLowerCase("ru").includes(q))); const el=document.getElementById("grid"); if(!list.length){ el.innerHTML=`<div class="empty">${q?"Ничего не найдено":"Нет товаров"}</div>`; return; } el.innerHTML=list.map(({p,index})=>{ const inCart=cart[index]||0; const avail=p.stock-inCart; const out=avail<=0; return `<div class="card"><div class="thumb" style="background:${brandColor(p.brand)}">${p.image_url?`<img src="${escapeHtml(String(p.image_url))}" alt="${escapeHtml(p.name)}" loading="lazy">`:escapeHtml(p.brand)}</div><div class="card-body"><div class="name">${escapeHtml(p.name)}</div><div class="stock ${out?'out':''}">${out?'Нет в наличии':'В наличии: '+avail+' шт'}</div><div class="row"><div class="price">${p.price} ₽</div><button class="add" ${out?'disabled':''} onclick="addToCart(${index})">${out?'Нет':'Купить'}</button></div></div></div>`; }).join(""); }
 function setSearch(value){ searchQuery=value; renderGrid(); }
 function setCat(c){ activeCat=c; renderCats(); renderGrid(); }
 function addToCart(i){ if((cart[i]||0) >= PRODUCTS[i].stock){ toast("Больше нет"); return; } cart[i] = (cart[i]||0)+1; updateBadge(); renderGrid(); toast("Добавлено"); }
@@ -1040,6 +1053,8 @@ let tapCount=0, tapTimer=null;
 function tapBrand(){ tapCount++; clearTimeout(tapTimer); tapTimer = setTimeout(()=>{tapCount=0}, 800); if(tapCount>=5){ tapCount=0; askAdmin(); } }
 
 const ADMIN_TOKEN_KEY="ks_admin_access_token";
+let ADMIN_PRODUCTS=[];
+let ADMIN_PRODUCT_PAGE=0;
 function askAdmin(){ openAdmin(); }
 function getAdminToken(){ try{return sessionStorage.getItem(ADMIN_TOKEN_KEY)||"";}catch(e){return "";} }
 function setAdminToken(token){ try{sessionStorage.setItem(ADMIN_TOKEN_KEY,token);}catch(e){} }
@@ -1116,7 +1131,7 @@ function renderAdminOrders(orders){
       </select>
     </section>`;
   }).join("");
-  document.getElementById("adminBody").innerHTML=`<div class="admin-actions">
+  document.getElementById("adminBody").innerHTML=adminTabs("orders")+`<div class="admin-actions">
     <button class="btn-primary" onclick="loadAdminOrders()">Обновить заказы</button>
     <button class="btn-secondary" onclick="adminLogout()">Выйти</button>
   </div><p class="admin-muted">Последние ${orders.length} заказов</p>${cards||'<div class="empty">Заказов пока нет</div>'}`;
@@ -1125,6 +1140,82 @@ async function updateAdminOrderStatus(id,status){
   try{await adminRequest({action:"update_status",order_id:id,status});toast("Статус заказа обновлён");}
   catch(error){toast(error.message||"Не удалось обновить статус");loadAdminOrders();}
 }
+
+function adminTabs(active){
+ return \`<div class="admin-tabs"><button class="\${active==="orders"?"active":""}" onclick="loadAdminOrders()">Заказы</button><button class="\${active==="products"?"active":""}" onclick="loadAdminProducts()">Товары</button></div>\`;
+}
+async function loadAdminProducts(){
+ const body=document.getElementById("adminBody");body.innerHTML='<div class="empty">Загружаем каталог…</div>';
+ try{const result=await adminRequest({action:"products"});renderAdminProducts(result.products||[]);}
+ catch(error){toast(error.message||"Не удалось загрузить товары");}
+}
+function renderAdminProducts(products){
+ ADMIN_PRODUCTS=products;
+ const active=products.filter(p=>p.is_active).length;
+ const query=(document.getElementById("adminProductSearch")?.value||"").trim().toLowerCase();
+ const filtered=products.filter(p=>[p.name,p.category,p.brand].some(v=>String(v||"").toLowerCase().includes(query)));
+ const pageSize=20,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize));
+ ADMIN_PRODUCT_PAGE=Math.min(ADMIN_PRODUCT_PAGE,pageCount-1);
+ const visible=filtered.slice(ADMIN_PRODUCT_PAGE*pageSize,(ADMIN_PRODUCT_PAGE+1)*pageSize);
+ const cards=visible.map(p=>\`<section class="admin-product">
+ <div class="admin-product-head"><strong>\${escapeHtml(String(p.name||""))}</strong><span class="admin-muted">\${p.is_active?"В витрине":"Скрыт"}</span></div>
+ <div class="field"><label>Название</label><input id="pname_\${escapeHtml(String(p.product_key))}" maxlength="180" value="\${escapeHtml(String(p.name||""))}"></div>
+ <div class="field"><label>Категория</label><input id="pcat_\${escapeHtml(String(p.product_key))}" maxlength="80" value="\${escapeHtml(String(p.category||""))}"></div>
+ <div class="field"><label>Бренд</label><input id="pbrand_\${escapeHtml(String(p.product_key))}" maxlength="80" value="\${escapeHtml(String(p.brand||""))}"></div>
+ <div class="field"><label>Цена, ₽</label><input id="pprice_\${escapeHtml(String(p.product_key))}" type="number" min="0" step="1" value="\${Number(p.price)||0}"></div>
+ <div class="field"><label>Остаток (−1 — особое значение)</label><input id="pstock_\${escapeHtml(String(p.product_key))}" type="number" min="-1" step="1" value="\${Number(p.stock)}"></div>
+ <div class="admin-product-actions"><button onclick="saveAdminProduct('\${escapeHtml(String(p.product_key))}')">Сохранить</button><button class="secondary" onclick="setAdminProductActive('\${escapeHtml(String(p.product_key))}',\${!p.is_active})">\${p.is_active?"Скрыть":"Вернуть"}</button></div>
+ </section>\`).join("");
+ document.getElementById("adminBody").innerHTML=adminTabs("products")+ \`
+ <div class="admin-actions"><button class="btn-primary" onclick="loadAdminProducts()">Обновить каталог</button><button class="btn-secondary" onclick="adminLogout()">Выйти</button></div>
+ <p class="admin-count">Всего: \${products.length} · В витрине: \${active} · Скрыто: \${products.length-active}</p>
+ <section class="admin-add"><h3>Добавить товар</h3>
+ <div class="field"><label>Название</label><input id="newPname" maxlength="180" placeholder="Название товара"></div>
+ <div class="field"><label>Категория</label><input id="newPcat" maxlength="80" placeholder="Например, Кальяны"></div>
+ <div class="field"><label>Бренд</label><input id="newPbrand" maxlength="80" placeholder="Необязательно"></div>
+ <div class="field"><label>Цена, ₽</label><input id="newPprice" type="number" min="0" step="1" value="0"></div>
+ <div class="field"><label>Остаток</label><input id="newPstock" type="number" min="0" step="1" value="0"></div>
+ <button class="btn-primary" onclick="createAdminProduct()">Добавить товар</button></section>
+ \${cards||'<div class="empty">Ничего не найдено</div>'}<div class="admin-product-actions"><button class="secondary" onclick="changeAdminProductPage(-1)" ${ADMIN_PRODUCT_PAGE===0?"disabled":""}>Назад</button><button class="secondary" onclick="changeAdminProductPage(1)" ${ADMIN_PRODUCT_PAGE>=pageCount-1?"disabled":""}>Дальше</button></div>\`;
+}
+
+async function uploadAdminProductImage(key,input){
+ const file=input.files&&input.files[0];if(!file)return;
+ if(!/^image\/(jpeg|png|webp)$/.test(file.type)){toast("Выберите JPG, PNG или WEBP");input.value="";return;}
+ if(file.size>12*1024*1024){toast("Исходное фото должно быть меньше 12 МБ");input.value="";return;}
+ try{
+  const source=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
+  const image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=source;});
+  const scale=Math.min(1,1200/Math.max(image.width,image.height)),canvas=document.createElement("canvas");
+  canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));
+  canvas.getContext("2d").drawImage(image,0,0,canvas.width,canvas.height);
+  let encoded=canvas.toDataURL("image/jpeg",0.82).split(",")[1];
+  if(encoded.length>2800000)encoded=canvas.toDataURL("image/jpeg",0.62).split(",")[1];
+  if(encoded.length>2800000)throw new Error("Фото слишком большое даже после сжатия");
+  toast("Загружаем фото…");
+  await adminRequest({action:"upload_product_image",product_key:key,mime_type:"image/jpeg",image_base64:encoded});
+  toast("Фото товара обновлено");await loadAdminProducts();loadCatalog();
+ }catch(error){toast(error.message||"Не удалось загрузить фото");}
+ finally{input.value="";}
+}
+
+function filterAdminProducts(){ADMIN_PRODUCT_PAGE=0;renderAdminProducts(ADMIN_PRODUCTS);}
+function changeAdminProductPage(delta){ADMIN_PRODUCT_PAGE=Math.max(0,ADMIN_PRODUCT_PAGE+delta);renderAdminProducts(ADMIN_PRODUCTS);}
+async function saveAdminProduct(key){
+ const val=id=>document.getElementById(id+"_"+key).value.trim();
+ try{await adminRequest({action:"update_product",product_key:key,name:val("pname"),category:val("pcat"),brand:val("pbrand"),price:Number(val("pprice")),stock:Number(val("pstock"))});toast("Товар сохранён");await loadAdminProducts();}
+ catch(error){toast(error.message||"Не удалось сохранить товар");}
+}
+async function setAdminProductActive(key,isActive){
+ try{await adminRequest({action:"set_product_active",product_key:key,is_active:isActive});toast(isActive?"Товар возвращён в витрину":"Товар скрыт");await loadAdminProducts();}
+ catch(error){toast(error.message||"Не удалось изменить видимость");}
+}
+async function createAdminProduct(){
+ const payload={action:"create_product",name:document.getElementById("newPname").value.trim(),category:document.getElementById("newPcat").value.trim(),brand:document.getElementById("newPbrand").value.trim(),price:Number(document.getElementById("newPprice").value),stock:Number(document.getElementById("newPstock").value)};
+ try{await adminRequest(payload);toast("Товар добавлен");await loadAdminProducts();}
+ catch(error){toast(error.message||"Не удалось добавить товар");}
+}
+
 function adminLogout(){clearAdminToken();renderAdminLogin("Вы вышли из панели.");}
 function handleAvatar(e){ const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (ev)=>{ SETTINGS.avatar = ev.target.result; }; reader.readAsDataURL(file); }
 function delPromo(i){ SETTINGS.promos.splice(i,1); saveSettings(SETTINGS); renderAdmin(); }
