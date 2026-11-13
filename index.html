@@ -1142,7 +1142,7 @@ async function updateAdminOrderStatus(id,status){
 }
 
 function adminTabs(active){
- return \`<div class="admin-tabs"><button class="\${active==="orders"?"active":""}" onclick="loadAdminOrders()">Заказы</button><button class="\${active==="products"?"active":""}" onclick="loadAdminProducts()">Товары</button></div>\`;
+ return `<div class="admin-tabs"><button class="${active==="orders"?"active":""}" onclick="loadAdminOrders()">Заказы</button><button class="${active==="products"?"active":""}" onclick="loadAdminProducts()">Товары</button></div>`;
 }
 async function loadAdminProducts(){
  const body=document.getElementById("adminBody");body.innerHTML='<div class="empty">Загружаем каталог…</div>';
@@ -1157,18 +1157,18 @@ function renderAdminProducts(products){
  const pageSize=20,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize));
  ADMIN_PRODUCT_PAGE=Math.min(ADMIN_PRODUCT_PAGE,pageCount-1);
  const visible=filtered.slice(ADMIN_PRODUCT_PAGE*pageSize,(ADMIN_PRODUCT_PAGE+1)*pageSize);
- const cards=visible.map(p=>\`<section class="admin-product">
- <div class="admin-product-head"><strong>\${escapeHtml(String(p.name||""))}</strong><span class="admin-muted">\${p.is_active?"В витрине":"Скрыт"}</span></div>
- <div class="field"><label>Название</label><input id="pname_\${escapeHtml(String(p.product_key))}" maxlength="180" value="\${escapeHtml(String(p.name||""))}"></div>
- <div class="field"><label>Категория</label><input id="pcat_\${escapeHtml(String(p.product_key))}" maxlength="80" value="\${escapeHtml(String(p.category||""))}"></div>
- <div class="field"><label>Бренд</label><input id="pbrand_\${escapeHtml(String(p.product_key))}" maxlength="80" value="\${escapeHtml(String(p.brand||""))}"></div>
- <div class="field"><label>Цена, ₽</label><input id="pprice_\${escapeHtml(String(p.product_key))}" type="number" min="0" step="1" value="\${Number(p.price)||0}"></div>
- <div class="field"><label>Остаток (−1 — особое значение)</label><input id="pstock_\${escapeHtml(String(p.product_key))}" type="number" min="-1" step="1" value="\${Number(p.stock)}"></div>
- <div class="admin-product-actions"><button onclick="saveAdminProduct('\${escapeHtml(String(p.product_key))}')">Сохранить</button><button class="secondary" onclick="setAdminProductActive('\${escapeHtml(String(p.product_key))}',\${!p.is_active})">\${p.is_active?"Скрыть":"Вернуть"}</button></div>
- </section>\`).join("");
- document.getElementById("adminBody").innerHTML=adminTabs("products")+ \`
+ const cards=visible.map(p=>`<section class="admin-product">
+ <div class="admin-product-head"><strong>${escapeHtml(String(p.name||""))}</strong><span class="admin-muted">${p.is_active?"В витрине":"Скрыт"}</span></div>
+ <div class="field"><label>Название</label><input id="pname_${escapeHtml(String(p.product_key))}" maxlength="180" value="${escapeHtml(String(p.name||""))}"></div>
+ <div class="field"><label>Категория</label><input id="pcat_${escapeHtml(String(p.product_key))}" maxlength="80" value="${escapeHtml(String(p.category||""))}"></div>
+ <div class="field"><label>Бренд</label><input id="pbrand_${escapeHtml(String(p.product_key))}" maxlength="80" value="${escapeHtml(String(p.brand||""))}"></div>
+ <div class="field"><label>Цена, ₽</label><input id="pprice_${escapeHtml(String(p.product_key))}" type="number" min="0" step="1" value="${Number(p.price)||0}"></div>
+ <div class="field"><label>Остаток (−1 — особое значение)</label><input id="pstock_${escapeHtml(String(p.product_key))}" type="number" min="-1" step="1" value="${Number(p.stock)}"></div>
+ <div class="admin-product-actions"><button onclick="saveAdminProduct('${escapeHtml(String(p.product_key))}')">Сохранить</button><button class="secondary" onclick="setAdminProductActive('${escapeHtml(String(p.product_key))}',${!p.is_active})">${p.is_active?"Скрыть":"Вернуть"}</button></div>
+ </section>`).join("");
+ document.getElementById("adminBody").innerHTML=adminTabs("products")+ `
  <div class="admin-actions"><button class="btn-primary" onclick="loadAdminProducts()">Обновить каталог</button><button class="btn-secondary" onclick="adminLogout()">Выйти</button></div>
- <p class="admin-count">Всего: \${products.length} · В витрине: \${active} · Скрыто: \${products.length-active}</p>
+ <p class="admin-count">Всего: ${products.length} · В витрине: ${active} · Скрыто: ${products.length-active}</p>
  <section class="admin-add"><h3>Добавить товар</h3>
  <div class="field"><label>Название</label><input id="newPname" maxlength="180" placeholder="Название товара"></div>
  <div class="field"><label>Категория</label><input id="newPcat" maxlength="80" placeholder="Например, Кальяны"></div>
@@ -1176,7 +1176,7 @@ function renderAdminProducts(products){
  <div class="field"><label>Цена, ₽</label><input id="newPprice" type="number" min="0" step="1" value="0"></div>
  <div class="field"><label>Остаток</label><input id="newPstock" type="number" min="0" step="1" value="0"></div>
  <button class="btn-primary" onclick="createAdminProduct()">Добавить товар</button></section>
- \${cards||'<div class="empty">Ничего не найдено</div>'}<div class="admin-product-actions"><button class="secondary" onclick="changeAdminProductPage(-1)" ${ADMIN_PRODUCT_PAGE===0?"disabled":""}>Назад</button><button class="secondary" onclick="changeAdminProductPage(1)" ${ADMIN_PRODUCT_PAGE>=pageCount-1?"disabled":""}>Дальше</button></div>\`;
+ ${cards||'<div class="empty">Ничего не найдено</div>'}<div class="admin-product-actions"><button class="secondary" onclick="changeAdminProductPage(-1)" ${ADMIN_PRODUCT_PAGE===0?"disabled":""}>Назад</button><button class="secondary" onclick="changeAdminProductPage(1)" ${ADMIN_PRODUCT_PAGE>=pageCount-1?"disabled":""}>Дальше</button></div>`;
 }
 
 async function uploadAdminProductImage(key,input){
