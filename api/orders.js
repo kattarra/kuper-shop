@@ -59,7 +59,7 @@ async function attachReferralToOrder(order, phone, referralCode) {
     console.warn("[Referral] REFERRAL_HASH_SECRET is not configured; attribution skipped");
     return { linked: false, reason: "not_configured" };
   }
-  const digits = String(phone || "").replace(/\\D/g, "");
+  const digits = String(phone || "").replace(/\D/g, "");
   if (digits.length < 10 || digits.length > 15) return { linked: false, reason: "invalid_phone" };
 
   const crypto = require("crypto");
