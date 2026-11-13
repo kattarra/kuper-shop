@@ -1,8 +1,3 @@
-const fs = require("fs");
-const path = require("path");
-
-const catalog = JSON.parse(fs.readFileSync(path.join(process.cwd(), "catalog.json"), "utf8"));
-
 function send(res, status, body) {
   res.status(status).setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(body));
@@ -72,13 +67,16 @@ module.exports = async function handler(req, res) {
     if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 100) {
       return send(res, 400, { error: "Корзина пуста или содержит слишком много позиций" });
     }
+    stage = "load_catalog";
+    const catalogRows = await supabaseRequest("/rest/v1/products?select=product_key,category,brand,name,price,stock,is_active,sort_order&is_active=eq.true&order=sort_order.asc");
+    const catalog = new Map(catalogRows.map(product => [String(product.product_key), product]));
     const seen = new Set();
     const items = [];
     for (const item of body.items) {
       const key = String(item.product_key);
-      const product = catalog[Number(key)];
+      const product = catalog.get(key);
       const quantity = Number(item.quantity);
-      if (!product || product.product_key !== key || !Number.isInteger(quantity) || quantity < 1 || quantity > product.stock || seen.has(key)) {
+      if (!product || !Number.isInteger(quantity) || quantity < 1 || product.stock < 0 || quantity > product.stock || seen.has(key)) {
         return send(res, 400, { error: "Некорректный товар или количество" });
       }
       seen.add(key);
