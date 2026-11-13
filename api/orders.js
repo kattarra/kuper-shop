@@ -159,6 +159,7 @@ module.exports = async function handler(req, res) {
       ok: true,
       order_number: order.order_number,
       subtotal, delivery_fee, total,
+      referral_attributed: referral.linked,
       telegram_notification_configured: telegram.configured,
       telegram_notifications_sent: telegram.sent || 0
     });
