@@ -54,6 +54,19 @@ module.exports=async function handler(req,res){
    if(!Array.isArray(updated)||!updated.length)return send(res,404,{error:"Товар не найден"});
    return send(res,200,{ok:true,product:updated[0]});
   }
+
+  if(action==="upload_product_image"){
+   const key=String(body.product_key||""),mime=String(body.mime_type||""),data=String(body.image_base64||"");
+   if(!key||!/^image\/(jpeg|png|webp)$/.test(mime)||!data||data.length>2800000)return send(res,400,{error:"Нужен JPG, PNG или WEBP размером до 2 МБ"});
+   const bytes=Buffer.from(data,"base64");
+   if(!bytes.length||bytes.length>2*1024*1024)return send(res,400,{error:"Изображение должно быть не больше 2 МБ"});
+   const ext=mime==="image/jpeg"?"jpg":mime.split("/")[1],path=encodeURIComponent(key)+"/"+Date.now()+"."+ext;
+   const upload=await fetch(cfg.url+"/storage/v1/object/product-images/"+path,{method:"POST",headers:{apikey:cfg.service,Authorization:"Bearer "+cfg.service,"Content-Type":mime,"x-upsert":"true"},body:bytes});
+   if(!upload.ok){const detail=await upload.text();console.error("Image upload failed:",upload.status,detail);return send(res,502,{error:"Не удалось загрузить изображение в Storage. Проверьте bucket product-images"});}
+   const imagePath=decodeURIComponent(path);
+   await request(cfg.url+"/rest/v1/product_images?on_conflict=product_key",{...serviceHeaders(cfg.service),Prefer:"resolution=merge-duplicates,return=minimal"},{method:"POST",body:JSON.stringify({product_key:key,image_path:imagePath,updated_at:new Date().toISOString()})});
+   return send(res,200,{ok:true,image_url:cfg.url+"/storage/v1/object/public/product-images/"+imagePath});
+  }
   if(action==="orders"){
    const orders=await request(cfg.url+"/rest/v1/orders?select=id,order_number,customer_name,phone,address,comment,subtotal,delivery_fee,total,status,created_at,order_items(id,product_name,quantity,unit_price)&order=created_at.desc&limit=100",serviceHeaders(cfg.service));
    return send(res,200,{ok:true,orders});
