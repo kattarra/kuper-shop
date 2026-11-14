@@ -91,7 +91,7 @@
   .admin-add h3{margin:0 0 10px;color:var(--gold);font-size:14px}
   .admin-count{font-size:12px;color:var(--muted);margin:8px 0}
 
-</style>
+  .crop-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.82)}\n  .crop-dialog{width:min(100%,420px);max-height:90vh;overflow:auto;background:var(--bg);border:1px solid var(--border);border-radius:18px;padding:16px;box-shadow:0 20px 60px #0008}\n  .crop-head{display:flex;justify-content:space-between;align-items:center;font-size:17px}.crop-head button{background:none;border:0;color:var(--text);font-size:26px}\n  .crop-hint{font-size:13px;color:var(--muted);line-height:1.45;margin:10px 0 14px}.crop-frame{width:100%;aspect-ratio:3/2;background:#151820;border-radius:12px;overflow:hidden;touch-action:none}.crop-frame canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}.crop-zoom{display:flex;align-items:center;gap:12px;margin:14px 0}.crop-zoom label{font-size:13px;white-space:nowrap}.crop-zoom input{flex:1;min-width:0}.crop-preview-label{font-size:12px;color:var(--muted);margin:12px 0 7px}.crop-card-preview{width:calc(50% - 5px);max-width:190px;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}.crop-card-image{aspect-ratio:3/2;background:#151820}.crop-card-image canvas{width:100%;height:100%;display:block}.crop-card-lines{padding:8px;display:grid;gap:6px}.crop-card-lines span{height:6px;border-radius:4px;background:var(--border)}.crop-card-lines span:last-of-type{width:65%}.crop-card-lines b{font-size:13px;color:var(--green)}.crop-actions{display:flex;gap:8px;margin-top:16px}.crop-actions button{flex:1;border:0;border-radius:10px;padding:12px;background:var(--accent);color:white;font:inherit}.crop-actions button.secondary{background:var(--card2);border:1px solid var(--border);color:var(--text)}.crop-actions button:disabled{opacity:.5}\n</style>
 </head>
 <body>
 
@@ -1329,26 +1329,69 @@ function renderAdminProducts(products){
  ${cards||'<div class="empty">Ничего не найдено</div>'}<div class="admin-product-actions"><button class="secondary" onclick="changeAdminProductPage(-1)" ${ADMIN_PRODUCT_PAGE===0?"disabled":""}>Назад</button><button class="secondary" onclick="changeAdminProductPage(1)" ${ADMIN_PRODUCT_PAGE>=pageCount-1?"disabled":""}>Дальше</button></div>`;
 }
 
-async function uploadAdminProductImage(key,input){
+let PRODUCT_CROP=null;
+function uploadAdminProductImage(key,input){
  const file=input.files&&input.files[0];if(!file)return;
- if(!/^image\/(jpeg|png|webp)$/.test(file.type)){toast("Выберите JPG, PNG или WEBP");input.value="";return;}
+ if(!/^image\\/(jpeg|png|webp)$/.test(file.type)){toast("Выберите JPG, PNG или WEBP");input.value="";return;}
  if(file.size>12*1024*1024){toast("Исходное фото должно быть меньше 12 МБ");input.value="";return;}
+ const reader=new FileReader();
+ reader.onload=()=>{const image=new Image();image.onload=()=>openProductCropEditor(key,image,input);image.onerror=()=>{toast("Не удалось открыть изображение");input.value="";};image.src=reader.result;};
+ reader.onerror=()=>{toast("Не удалось прочитать фото");input.value="";};
+ reader.readAsDataURL(file);
+}
+function openProductCropEditor(key,image,input){
+ PRODUCT_CROP={key,image,input,zoom:1,x:0,y:0,dragging:false,lastX:0,lastY:0};
+ const body=document.getElementById("adminBody");
+ const modal=document.createElement("div");modal.id="productCropEditor";modal.className="crop-overlay";
+ modal.innerHTML=`<div class="crop-dialog">
+  <div class="crop-head"><strong>Кадрирование фото</strong><button type="button" onclick="closeProductCropEditor()">×</button></div>
+  <p class="crop-hint">Так фото будет выглядеть в карточке товара. Перетаскивай изображение, чтобы выбрать нужную область.</p>
+  <div class="crop-frame"><canvas id="productCropCanvas" width="600" height="400"></canvas></div>
+  <div class="crop-zoom"><label for="productCropZoom">Масштаб</label><input id="productCropZoom" type="range" min="1" max="3" step="0.01" value="1" oninput="setProductCropZoom(this.value)"></div>
+  <div class="crop-preview-label">Предпросмотр карточки каталога</div>
+  <div class="crop-card-preview"><div class="crop-card-image"><canvas id="productCropThumb" width="300" height="200"></canvas></div><div class="crop-card-lines"><span></span><span></span><b>999 ₽</b></div></div>
+  <div class="crop-actions"><button type="button" class="secondary" onclick="closeProductCropEditor()">Отмена</button><button type="button" onclick="saveProductCrop()">Сохранить фото</button></div>
+ </div>`;
+ body.appendChild(modal);
+ const canvas=document.getElementById("productCropCanvas");
+ canvas.onpointerdown=e=>{const c=PRODUCT_CROP;if(!c)return;c.dragging=true;c.lastX=e.clientX;c.lastY=e.clientY;canvas.setPointerCapture(e.pointerId);};
+ canvas.onpointermove=e=>{const c=PRODUCT_CROP;if(!c||!c.dragging)return;const rect=canvas.getBoundingClientRect();c.x+=(e.clientX-c.lastX)*canvas.width/rect.width;c.y+=(e.clientY-c.lastY)*canvas.height/rect.height;c.lastX=e.clientX;c.lastY=e.clientY;drawProductCrop();};
+ canvas.onpointerup=canvas.onpointercancel=()=>{if(PRODUCT_CROP)PRODUCT_CROP.dragging=false;};
+ drawProductCrop();
+}
+function drawProductCrop(){
+ const c=PRODUCT_CROP;if(!c)return;
+ const image=c.image,canvas=document.getElementById("productCropCanvas"),thumb=document.getElementById("productCropThumb");if(!canvas||!thumb)return;
+ const render=(target,multiplier)=>{
+  const ctx=target.getContext("2d"),w=target.width,h=target.height;
+  ctx.clearRect(0,0,w,h);ctx.fillStyle="#151820";ctx.fillRect(0,0,w,h);
+  const base=Math.max(w/image.width,h/image.height)*c.zoom;
+  const dw=image.width*base,dh=image.height*base;
+  const x=(w-dw)/2+c.x*multiplier,y=(h-dh)/2+c.y*multiplier;
+  ctx.save();ctx.beginPath();ctx.rect(0,0,w,h);ctx.clip();ctx.drawImage(image,x,y,dw,dh);ctx.restore();
+ };
+ render(canvas,1);render(thumb,.5);
+}
+function setProductCropZoom(value){if(!PRODUCT_CROP)return;PRODUCT_CROP.zoom=Number(value)||1;drawProductCrop();}
+function closeProductCropEditor(){const el=document.getElementById("productCropEditor");if(el)el.remove();if(PRODUCT_CROP&&PRODUCT_CROP.input)PRODUCT_CROP.input.value="";PRODUCT_CROP=null;}
+async function saveProductCrop(){
+ const c=PRODUCT_CROP;if(!c)return;
+ const output=document.createElement("canvas");output.width=1200;output.height=800;
+ const ctx=output.getContext("2d"),image=c.image,base=Math.max(output.width/image.width,output.height/image.height)*c.zoom;
+ const dw=image.width*base,dh=image.height*base;
+ ctx.fillStyle="#151820";ctx.fillRect(0,0,output.width,output.height);
+ ctx.drawImage(image,(output.width-dw)/2+c.x*2,(output.height-dh)/2+c.y*2,dw,dh);
+ let encoded=output.toDataURL("image/jpeg",0.86).split(",")[1];
+ if(encoded.length>2800000)encoded=output.toDataURL("image/jpeg",0.68).split(",")[1];
+ if(encoded.length>2800000){toast("Фото слишком большое после сжатия");return;}
+ const key=c.key,input=c.input;
  try{
-  const source=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
-  const image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=source;});
-  const scale=Math.min(1,1200/Math.max(image.width,image.height)),canvas=document.createElement("canvas");
-  canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));
-  canvas.getContext("2d").drawImage(image,0,0,canvas.width,canvas.height);
-  let encoded=canvas.toDataURL("image/jpeg",0.82).split(",")[1];
-  if(encoded.length>2800000)encoded=canvas.toDataURL("image/jpeg",0.62).split(",")[1];
-  if(encoded.length>2800000)throw new Error("Фото слишком большое даже после сжатия");
+  const buttons=document.querySelectorAll("#productCropEditor button");buttons.forEach(b=>b.disabled=true);
   toast("Загружаем фото…");
   await adminRequest({action:"upload_product_image",product_key:key,mime_type:"image/jpeg",image_base64:encoded});
-  toast("Фото товара обновлено");await loadAdminProducts();loadCatalog();
- }catch(error){toast(error.message||"Не удалось загрузить фото");}
- finally{input.value="";}
+  closeProductCropEditor();toast("Фото товара обновлено");await loadAdminProducts();loadCatalog();
+ }catch(error){document.querySelectorAll("#productCropEditor button").forEach(b=>b.disabled=false);toast(error.message||"Не удалось загрузить фото");}
 }
-
 function filterAdminProducts(){ADMIN_PRODUCT_PAGE=0;renderAdminProducts(ADMIN_PRODUCTS);}
 function changeAdminProductPage(delta){ADMIN_PRODUCT_PAGE=Math.max(0,ADMIN_PRODUCT_PAGE+delta);renderAdminProducts(ADMIN_PRODUCTS);}
 async function saveAdminProduct(key){
