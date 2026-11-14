@@ -1332,7 +1332,7 @@ function renderAdminProducts(products){
 let PRODUCT_CROP=null;
 function uploadAdminProductImage(key,input){
  const file=input.files&&input.files[0];if(!file)return;
- if(!/^image\\/(jpeg|png|webp)$/.test(file.type)){toast("Выберите JPG, PNG или WEBP");input.value="";return;}
+ if(!/^image\/(jpeg|png|webp)$/.test(file.type)){toast("Выберите JPG, PNG или WEBP");input.value="";return;}
  if(file.size>12*1024*1024){toast("Исходное фото должно быть меньше 12 МБ");input.value="";return;}
  const reader=new FileReader();
  reader.onload=()=>{const image=new Image();image.onload=()=>openProductCropEditor(key,image,input);image.onerror=()=>{toast("Не удалось открыть изображение");input.value="";};image.src=reader.result;};
