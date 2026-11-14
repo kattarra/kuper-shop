@@ -132,6 +132,42 @@ module.exports=async function handler(req,res){
    return send(res,200,{ok:true,partner:updated[0]});
   }
 
+  if(action==="promotions"){
+   const promotions=await request(cfg.url+"/rest/v1/shop_promotions?select=id,text,image_url,sort_order,is_active,created_at,updated_at&order=sort_order.asc,created_at.asc",serviceHeaders(cfg.service));
+   return send(res,200,{ok:true,promotions});
+  }
+  if(action==="save_promotion"){
+   const id=String(body.id||""),textValue=String(body.text||"").trim(),sortOrder=Number(body.sort_order);
+   if(!textValue||textValue.length>180||!Number.isInteger(sortOrder)||sortOrder<0||sortOrder>1000)return send(res,400,{error:"Проверьте текст акции и порядок"});
+   const payload={text:textValue,sort_order:sortOrder,is_active:body.is_active!==false,updated_at:new Date().toISOString()};
+   if(body.image_url!==undefined)payload.image_url=body.image_url?String(body.image_url):null;
+   let saved;
+   if(id){
+    if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:"Некорректная акция"});
+    saved=await request(cfg.url+"/rest/v1/shop_promotions?id=eq."+encodeURIComponent(id),{...serviceHeaders(cfg.service),Prefer:"return=representation"},{method:"PATCH",body:JSON.stringify(payload)});
+   }else{
+    saved=await request(cfg.url+"/rest/v1/shop_promotions",{...serviceHeaders(cfg.service),Prefer:"return=representation"},{method:"POST",body:JSON.stringify([payload])});
+   }
+   if(!Array.isArray(saved)||!saved.length)return send(res,404,{error:"Акция не найдена"});
+   return send(res,200,{ok:true,promotion:saved[0]});
+  }
+  if(action==="delete_promotion"){
+   const id=String(body.id||"");
+   if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:"Некорректная акция"});
+   await request(cfg.url+"/rest/v1/shop_promotions?id=eq."+encodeURIComponent(id),serviceHeaders(cfg.service),{method:"DELETE"});
+   return send(res,200,{ok:true});
+  }
+  if(action==="upload_promotion_image"){
+   const mime=String(body.mime_type||""),data=String(body.image_base64||"");
+   if(!/^image\\/(jpeg|png|webp)$/.test(mime)||!data||data.length>2800000)return send(res,400,{error:"Нужен JPG, PNG или WEBP размером до 2 МБ"});
+   const bytes=Buffer.from(data,"base64");
+   if(!bytes.length||bytes.length>2*1024*1024)return send(res,400,{error:"Изображение должно быть не больше 2 МБ"});
+   const ext=mime==="image/jpeg"?"jpg":mime.split("/")[1],path="promotions/"+Date.now()+"-"+require("crypto").randomBytes(4).toString("hex")+"."+ext;
+   const upload=await fetch(cfg.url+"/storage/v1/object/product-images/"+path,{method:"POST",headers:{apikey:cfg.service,Authorization:"Bearer "+cfg.service,"Content-Type":mime,"x-upsert":"true"},body:bytes});
+   if(!upload.ok){const detail=await upload.text();console.error("Promotion image upload failed:",upload.status,detail);return send(res,502,{error:"Не удалось загрузить изображение акции"});}
+   return send(res,200,{ok:true,image_url:cfg.url+"/storage/v1/object/public/product-images/"+path});
+  }
+
   if(action==="orders"){
    const orders=await request(cfg.url+"/rest/v1/orders?select=id,order_number,customer_name,phone,address,comment,subtotal,delivery_fee,total,status,created_at,order_items(id,product_name,quantity,unit_price)&order=created_at.desc&limit=100",serviceHeaders(cfg.service));
    return send(res,200,{ok:true,orders});
