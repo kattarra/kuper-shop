@@ -77,7 +77,7 @@
   .admin-order p{margin:5px 0;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
   .admin-order-items{margin:9px 0;padding:9px;border-radius:9px;background:var(--card2);font-size:13px;line-height:1.55}
   .admin-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-  .admin-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 14px}
+  .admin-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0 14px}
   .admin-tabs button{padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--card2);color:var(--text);font:inherit}
   .admin-tabs button.active{background:var(--accent);border-color:var(--accent)}
   .admin-product{padding:13px;margin:10px 0;border:1px solid var(--border);border-radius:13px;background:var(--card)}
@@ -1168,8 +1168,73 @@ async function updateAdminOrderStatus(id,status){
 }
 
 function adminTabs(active){
- return `<div class="admin-tabs"><button class="${active==="orders"?"active":""}" onclick="loadAdminOrders()">Заказы</button><button class="${active==="products"?"active":""}" onclick="loadAdminProducts()">Товары</button><button class="${active==="partners"?"active":""}" onclick="loadAdminPartners()">Партнёры</button></div>`;
+ return `<div class="admin-tabs"><button class="${active==="orders"?"active":""}" onclick="loadAdminOrders()">Заказы</button><button class="${active==="products"?"active":""}" onclick="loadAdminProducts()">Товары</button><button class="${active==="partners"?"active":""}" onclick="loadAdminPartners()">Партнёры</button><button class="${active==="promotions"?"active":""}" onclick="loadAdminPromotions()">Акции</button></div>`;
 }
+async function loadAdminPromotions(){
+ const body=document.getElementById("adminBody");body.innerHTML='<div class="empty">Загружаем акции…</div>';
+ try{const result=await adminRequest({action:"promotions"});renderAdminPromotions(result.promotions||[]);}
+ catch(error){toast(error.message||"Не удалось загрузить акции");}
+}
+function renderAdminPromotions(promotions){
+ const cards=promotions.map((p,i)=>`<section class="admin-sec">
+  <h3>Баннер #${i+1}</h3>
+  <div class="field"><label>Текст баннера</label><input id="promoText_${p.id}" maxlength="180" value="${escapeHtml(p.text||"")}"></div>
+  <div class="field"><label>Изображение баннера (JPG, PNG, WEBP)</label><input type="file" accept="image/jpeg,image/png,image/webp" onchange="uploadAdminPromotionImage('${p.id}',this)"><input type="hidden" id="promoImage_${p.id}" value="${escapeHtml(p.image_url||"")}"><div class="hint">${p.image_url?"Изображение загружено":"Можно оставить без изображения"}</div></div>
+  <div class="field"><label>Порядок показа (меньше = левее)</label><input id="promoOrder_${p.id}" type="number" min="0" max="1000" step="1" value="${Number(p.sort_order)||0}"></div>
+  <label><input id="promoActive_${p.id}" type="checkbox" ${p.is_active?"checked":""}> Показывать в магазине</label>
+  <div class="admin-product-actions"><button onclick="saveAdminPromotion('${p.id}')">Сохранить</button><button class="secondary" onclick="deleteAdminPromotion('${p.id}')">Удалить</button></div>
+ </section>`).join("");
+ document.getElementById("adminBody").innerHTML=adminTabs("promotions")+cards+`
+ <section class="admin-add"><h3>Добавить акцию</h3>
+ <div class="field"><label>Текст баннера</label><input id="newPromoText" maxlength="180" placeholder="Например, Скидка 10% до конца недели"></div>
+ <div class="field"><label>Изображение (необязательно)</label><input type="file" id="newPromoFile" accept="image/jpeg,image/png,image/webp"></div>
+ <div class="field"><label>Порядок показа</label><input id="newPromoOrder" type="number" min="0" max="1000" value="${promotions.length}"></div>
+ <button class="btn-primary" onclick="createAdminPromotion()">Добавить баннер</button></section>
+ <button class="btn-secondary" onclick="adminLogout()">Выйти</button>`;
+}
+async function uploadAdminPromotionImage(id,input){
+ const file=input.files&&input.files[0];if(!file)return;
+ if(!/^image\/(jpeg|png|webp)$/.test(file.type)){toast("Выберите JPG, PNG или WEBP");input.value="";return;}
+ if(file.size>12*1024*1024){toast("Исходное фото должно быть меньше 12 МБ");input.value="";return;}
+ try{
+  const source=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
+  const img=await new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=reject;image.src=source;});
+  const scale=Math.min(1,1600/Math.max(img.width,img.height)),canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+  let encoded=canvas.toDataURL("image/jpeg",0.82).split(",")[1];if(encoded.length>2800000)encoded=canvas.toDataURL("image/jpeg",0.62).split(",")[1];if(encoded.length>2800000)throw new Error("Фото слишком большое");
+  toast("Загружаем баннер…");const result=await adminRequest({action:"upload_promotion_image",mime_type:"image/jpeg",image_base64:encoded});
+  document.getElementById("promoImage_"+id).value=result.image_url;toast("Изображение загружено — сохраните баннер");
+ }catch(error){toast(error.message||"Не удалось загрузить баннер");}finally{input.value="";}
+}
+async function saveAdminPromotion(id){
+ try{await adminRequest({action:"save_promotion",id,text:document.getElementById("promoText_"+id).value,sort_order:Number(document.getElementById("promoOrder_"+id).value),is_active:document.getElementById("promoActive_"+id).checked,image_url:document.getElementById("promoImage_"+id).value||null});toast("Акция сохранена");await loadAdminPromotions();await loadPromotions();}
+ catch(error){toast(error.message||"Не удалось сохранить акцию");}
+}
+async function deleteAdminPromotion(id){
+ if(!confirm("Удалить этот баннер акции?"))return;
+ try{await adminRequest({action:"delete_promotion",id});toast("Акция удалена");await loadAdminPromotions();await loadPromotions();}
+ catch(error){toast(error.message||"Не удалось удалить акцию");}
+}
+async function createAdminPromotion(){
+ const textValue=document.getElementById("newPromoText").value.trim();if(!textValue){toast("Введите текст акции");return;}
+ try{
+  let image_url=null;const file=document.getElementById("newPromoFile").files[0];
+  if(file){
+   if(!/^image\/(jpeg|png|webp)$/.test(file.type)||file.size>12*1024*1024)throw new Error("Выберите JPG, PNG или WEBP до 12 МБ");
+   const source=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
+   const img=await new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=reject;image.src=source;});
+   const scale=Math.min(1,1600/Math.max(img.width,img.height)),canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+   let encoded=canvas.toDataURL("image/jpeg",0.82).split(",")[1];if(encoded.length>2800000)encoded=canvas.toDataURL("image/jpeg",0.62).split(",")[1];if(encoded.length>2800000)throw new Error("Фото слишком большое");
+   const uploaded=await adminRequest({action:"upload_promotion_image",mime_type:"image/jpeg",image_base64:encoded});image_url=uploaded.image_url;
+  }
+  await adminRequest({action:"save_promotion",text:textValue,sort_order:Number(document.getElementById("newPromoOrder").value)||0,image_url});
+  toast("Баннер добавлен");await loadAdminPromotions();await loadPromotions();
+ }catch(error){toast(error.message||"Не удалось добавить баннер");}
+}
+async function loadPromotions(){
+ try{const response=await fetch("/api/promotions",{cache:"no-store"});const result=await response.json();if(!response.ok||!result.ok)throw new Error("promotions load failed");SETTINGS.promos=(result.promotions||[]).map(p=>({text:p.text,img:p.image_url||""}));renderPromos();}
+ catch(error){console.error("[KuperShop] Promotions load failed:",error);}
+}
+
 async function loadAdminPartners(){
  const body=document.getElementById("adminBody");body.innerHTML='<div class="empty">Загружаем партнёров…</div>';
  try{const result=await adminRequest({action:"partners"});renderAdminPartners(result.partners||[]);}
@@ -1308,7 +1373,7 @@ function addPromo(){ const text = document.getElementById("aPromoText").value.tr
 function saveAdmin(){ SETTINGS.shopName = document.getElementById("aName").value.trim() || "KuperShop"; SETTINGS.reqs = document.getElementById("aReqs").value.trim(); saveSettings(SETTINGS); toast("Сохранено!"); closeAdmin(); }
 function toast(msg){ const el = document.getElementById("toast"); el.textContent = msg; el.classList.add("show"); setTimeout(()=>el.classList.remove("show"), 2000); }
 function escapeHtml(s){ return s.replace(/[&<>'"]/g, tag=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag]||tag)); }
-document.addEventListener("DOMContentLoaded", ()=>{ renderHeader(); renderPromos(); updateBadge(); if(hasAdultConfirmation()){ document.getElementById("ageGate").hidden=true; renderCats(); loadCatalog(); } else { showAgeGate(); } });
+document.addEventListener("DOMContentLoaded", ()=>{ renderHeader(); renderPromos(); loadPromotions(); updateBadge(); if(hasAdultConfirmation()){ document.getElementById("ageGate").hidden=true; renderCats(); loadCatalog(); } else { showAgeGate(); } });
 </script>
 </body>
 </html>
