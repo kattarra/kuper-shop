@@ -23,23 +23,32 @@ module.exports=async function handler(req,res){
  const text=String(message.text||"").trim();
  const keyboard={
   keyboard:[
-   [{text:"🛍 Открыть магазин",web_app:{url:"https://kuper-shop.vercel.app/"}}],
+   [{text:"🛍 Открыть магазин"}],
    [{text:"🛒 Как оформить заказ?"},{text:"❓ Помощь"}]
   ],
   resize_keyboard:true,
   is_persistent:true
  };
- let reply="";
- if(/^\/start(?:@\w+)?(?:\s|$)/i.test(text)){
-  reply="Добро пожаловать в KuperShop! 👋\n\nКаталог и оформление заказа находятся внутри нашего магазина. Нажмите кнопку «🛍 Открыть магазин» ниже — и можно выбирать товары.";
- }else if(/^\/help(?:@\w+)?$/i.test(text)||text==="❓ Помощь"){
-  reply="Нужна помощь с заказом? Напишите нам в ответ на это сообщение — мы подскажем.\n\nЧтобы перейти в каталог, нажмите «🛍 Открыть магазин».";
- }else if(text==="🛒 Как оформить заказ?"){
-  reply="Откройте магазин кнопкой ниже, добавьте товары в корзину и заполните контактные данные для оформления заказа.";
- }else{
-  reply="Я помогу перейти в магазин и разобраться с оформлением заказа. Нажмите «🛍 Открыть магазин» или выберите «❓ Помощь».";
- }
+ const launchKeyboard={
+  inline_keyboard:[[
+   {text:"🛍 Перейти в KuperShop",web_app:{url:"https://kuper-shop.vercel.app/"}}
+  ]]
+ };
  try{
+  if(text==="🛍 Открыть магазин"){
+   await telegram(cfg,"sendMessage",{chat_id:chatId,text:"Магазин готов к открытию 👇",reply_markup:launchKeyboard});
+   return send(res,200,{ok:true});
+  }
+  let reply="";
+  if(/^\/start(?:@\w+)?(?:\s|$)/i.test(text)){
+   reply="Добро пожаловать в KuperShop! 👋\n\nКаталог и оформление заказа находятся внутри магазина. Нажмите «🛍 Открыть магазин» в меню — я пришлю отдельную кнопку для запуска Mini App.";
+  }else if(/^\/help(?:@\w+)?$/i.test(text)||text==="❓ Помощь"){
+   reply="Нужна помощь с заказом? Напишите нам в ответ на это сообщение — мы подскажем.\n\nЧтобы открыть каталог, нажмите «🛍 Открыть магазин» в меню.";
+  }else if(text==="🛒 Как оформить заказ?"){
+   reply="Нажмите «🛍 Открыть магазин» в меню. Я пришлю отдельную кнопку для перехода в каталог. Затем добавьте товары в корзину и заполните контактные данные.";
+  }else{
+   reply="Я помогу перейти в магазин и разобраться с оформлением заказа. Нажмите «🛍 Открыть магазин» или выберите «❓ Помощь».";
+  }
   await telegram(cfg,"sendMessage",{chat_id:chatId,text:reply,reply_markup:keyboard});
   return send(res,200,{ok:true});
  }catch(error){
