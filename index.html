@@ -1355,10 +1355,11 @@ function openProductCropEditor(key,image,input){
  body.appendChild(modal);
  const canvas=document.getElementById("productCropCanvas");
  canvas.onpointerdown=e=>{const c=PRODUCT_CROP;if(!c)return;c.dragging=true;c.lastX=e.clientX;c.lastY=e.clientY;canvas.setPointerCapture(e.pointerId);};
- canvas.onpointermove=e=>{const c=PRODUCT_CROP;if(!c||!c.dragging)return;const rect=canvas.getBoundingClientRect();c.x+=(e.clientX-c.lastX)*canvas.width/rect.width;c.y+=(e.clientY-c.lastY)*canvas.height/rect.height;c.lastX=e.clientX;c.lastY=e.clientY;drawProductCrop();};
+ canvas.onpointermove=e=>{const c=PRODUCT_CROP;if(!c||!c.dragging)return;const rect=canvas.getBoundingClientRect();c.x+=(e.clientX-c.lastX)*canvas.width/rect.width;c.y+=(e.clientY-c.lastY)*canvas.height/rect.height;clampProductCrop();c.lastX=e.clientX;c.lastY=e.clientY;drawProductCrop();};
  canvas.onpointerup=canvas.onpointercancel=()=>{if(PRODUCT_CROP)PRODUCT_CROP.dragging=false;};
  drawProductCrop();
 }
+function clampProductCrop(){const c=PRODUCT_CROP;if(!c)return;const scale=Math.max(600/c.image.width,400/c.image.height)*c.zoom;const dw=c.image.width*scale,dh=c.image.height*scale;c.x=Math.max((600-dw)/2,Math.min((dw-600)/2,c.x));c.y=Math.max((400-dh)/2,Math.min((dh-400)/2,c.y));}
 function drawProductCrop(){
  const c=PRODUCT_CROP;if(!c)return;
  const image=c.image,canvas=document.getElementById("productCropCanvas"),thumb=document.getElementById("productCropThumb");if(!canvas||!thumb)return;
@@ -1372,7 +1373,7 @@ function drawProductCrop(){
  };
  render(canvas,1);render(thumb,.5);
 }
-function setProductCropZoom(value){if(!PRODUCT_CROP)return;PRODUCT_CROP.zoom=Number(value)||1;drawProductCrop();}
+function setProductCropZoom(value){if(!PRODUCT_CROP)return;PRODUCT_CROP.zoom=Number(value)||1;clampProductCrop();drawProductCrop();}
 function closeProductCropEditor(){const el=document.getElementById("productCropEditor");if(el)el.remove();if(PRODUCT_CROP&&PRODUCT_CROP.input)PRODUCT_CROP.input.value="";PRODUCT_CROP=null;}
 async function saveProductCrop(){
  const c=PRODUCT_CROP;if(!c)return;
