@@ -159,7 +159,7 @@ module.exports=async function handler(req,res){
   }
   if(action==="upload_promotion_image"){
    const mime=String(body.mime_type||""),data=String(body.image_base64||"");
-   if(!/^image\\/(jpeg|png|webp)$/.test(mime)||!data||data.length>2800000)return send(res,400,{error:"Нужен JPG, PNG или WEBP размером до 2 МБ"});
+   if(!/^image\/(jpeg|png|webp)$/.test(mime)||!data||data.length>2800000)return send(res,400,{error:"Нужен JPG, PNG или WEBP размером до 2 МБ"});
    const bytes=Buffer.from(data,"base64");
    if(!bytes.length||bytes.length>2*1024*1024)return send(res,400,{error:"Изображение должно быть не больше 2 МБ"});
    const ext=mime==="image/jpeg"?"jpg":mime.split("/")[1],path="promotions/"+Date.now()+"-"+require("crypto").randomBytes(4).toString("hex")+"."+ext;
