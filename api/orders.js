@@ -101,6 +101,8 @@ module.exports = async function handler(req, res) {
     const name = String(body.name || "").trim();
     const phone = String(body.phone || "").trim();
     const address = String(body.address || "").trim();
+    const payment_method = String(body.payment_method || "cash");
+    if (!["cash", "transfer"].includes(payment_method)) return send(res, 400, { error: "Выберите способ оплаты" });
     const comment = String(body.comment || "").trim();
     if (!name || name.length > 120 || !phone || phone.length > 40 || !address || address.length > 500) {
       return send(res, 400, { error: "Проверьте имя, телефон и адрес" });
@@ -131,7 +133,7 @@ module.exports = async function handler(req, res) {
       method: "POST",
       headers: { Prefer: "return=representation" },
       body: JSON.stringify([{
-        customer_name: name, phone, address, comment,
+        customer_name: name, phone, address, comment, payment_method,
         subtotal, delivery_fee, total, status: "new"
       }])
     });
