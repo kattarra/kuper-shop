@@ -1164,6 +1164,7 @@ function renderAdminOrders(orders){
       <p><b>Клиент:</b> ${escapeHtml(order.customer_name||"—")}</p>
       <p><b>Телефон:</b> <a href="tel:${escapeHtml(order.phone||"")}">${escapeHtml(order.phone||"—")}</a></p>
       <p><b>Адрес:</b> ${escapeHtml(order.address||"—")}</p>
+      <p><b>Оплата:</b> ${order.payment_method==="transfer"?"Перевод заранее — проверь поступление":"Наличными курьеру"}</p>
       <p><b>Дата:</b> ${escapeHtml(order.created_at?new Date(order.created_at).toLocaleString("ru-RU"):"—")}</p>
       <div class="admin-order-items">${items.map(item=>`${escapeHtml(item.product_name)} × ${Number(item.quantity)||0} — ${(Number(item.unit_price)||0)*(Number(item.quantity)||0)} ₽`).join("<br>")||"Позиции заказа не найдены"}</div>
       <p>Товары: ${Number(order.subtotal)||0} ₽ · Доставка: ${Number(order.delivery_fee)||0} ₽</p>
