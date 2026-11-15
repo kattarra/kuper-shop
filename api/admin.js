@@ -169,7 +169,7 @@ module.exports=async function handler(req,res){
   }
 
   if(action==="orders"){
-   const orders=await request(cfg.url+"/rest/v1/orders?select=id,order_number,customer_name,phone,address,comment,subtotal,delivery_fee,total,status,created_at,order_items(id,product_name,quantity,unit_price)&order=created_at.desc&limit=100",serviceHeaders(cfg.service));
+   const orders=await request(cfg.url+"/rest/v1/orders?select=id,order_number,customer_name,phone,address,comment,subtotal,delivery_fee,total,status,payment_method,created_at,order_items(id,product_name,quantity,unit_price)&order=created_at.desc&limit=100",serviceHeaders(cfg.service));
    return send(res,200,{ok:true,orders});
   }
   if(action==="update_status"){
